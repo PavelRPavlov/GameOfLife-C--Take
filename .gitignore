@@ -1,0 +1,107 @@
+﻿# ---------------------------------------------
+# .gitignore for .NET solutions developed in JetBrains Rider
+# ---------------------------------------------
+
+# ------------------- Build results -------------------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# Build / restore output
+build/
+msbuild.log
+msbuild.err
+msbuild.wrn
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ------------------- JetBrains Rider -------------------
+# Rider stores per-project and per-solution settings under .idea/
+.idea/
+*.sln.iml
+
+# Rider auto-generated cache / user files
+_ReSharper.Caches/
+*.DotSettings.user
+
+# ------------------- Visual Studio (if opened alongside) -------------------
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ------------------- NuGet -------------------
+*.nupkg
+*.snupkg
+# The packages folder for older (packages.config) style projects
+**/[Pp]ackages/*
+# Keep build/targets that may live inside packages
+!**/[Pp]ackages/build/
+# NuGet restore output
+.nuget/
+nuget.exe
+
+# ------------------- Test / coverage results -------------------
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+[Cc]overage*/
+TestResults/
+
+# ------------------- Publish / deployment -------------------
+publish/
+*.[Pp]ublish.xml
+*.azurePubxml
+# Keep PublishProfiles if you version them; otherwise uncomment:
+# **/[Pp]ublish[Pp]rofiles/
+
+# ------------------- ASP.NET / web -------------------
+*.[Pp]ublishproj
+wwwroot/dist/
+node_modules/
+bower_components/
+
+# ------------------- Rider / .NET user-specific -------------------
+*.rsuser
+*.userprefs
+
+# ------------------- OS / editor junk -------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*~
+*.swp
+
+# ------------------- Misc -------------------
+# Local environment / secrets
+*.env
+.env.local
+appsettings.*.local.json
+secrets.json
+
+# StyleCop / analyzer caches
+StyleCopReport.xml
+
+# Crash / dump files
+*.dmp
+*.mdmp
