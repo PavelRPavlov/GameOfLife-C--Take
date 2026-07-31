@@ -88,11 +88,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.Api\\GameOfLife.Api.csproj",
+      "projectUniqueName": "D:\\work\\GameOfLife-C--Take\\GameOfLife.Api\\GameOfLife.Api.csproj",
       "projectName": "GameOfLife.Api",
-      "projectPath": "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.Api\\GameOfLife.Api.csproj",
+      "projectPath": "D:\\work\\GameOfLife-C--Take\\GameOfLife.Api\\GameOfLife.Api.csproj",
       "packagesPath": "C:\\Users\\az\\.nuget\\packages\\",
-      "outputPath": "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.Api\\obj\\",
+      "outputPath": "D:\\work\\GameOfLife-C--Take\\GameOfLife.Api\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\az\\AppData\\Roaming\\NuGet\\NuGet.Config"

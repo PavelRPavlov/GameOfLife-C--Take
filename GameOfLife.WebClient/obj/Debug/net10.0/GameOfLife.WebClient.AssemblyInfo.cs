@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GameOfLife.WebClient")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+097fa706212cf68d94b5e51295d1cb4da48de185")]
 [assembly: System.Reflection.AssemblyProductAttribute("GameOfLife.WebClient")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GameOfLife.WebClient")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

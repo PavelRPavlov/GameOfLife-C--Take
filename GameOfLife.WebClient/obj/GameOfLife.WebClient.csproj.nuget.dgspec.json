@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj": {}
+    "D:\\work\\GameOfLife-C--Take\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj": {}
   },
   "projects": {
-    "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj": {
+    "D:\\work\\GameOfLife-C--Take\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj",
+        "projectUniqueName": "D:\\work\\GameOfLife-C--Take\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj",
         "projectName": "GameOfLife.WebClient",
-        "projectPath": "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj",
+        "projectPath": "D:\\work\\GameOfLife-C--Take\\GameOfLife.WebClient\\GameOfLife.WebClient.csproj",
         "packagesPath": "C:\\Users\\az\\.nuget\\packages\\",
-        "outputPath": "D:\\work\\gameOfLife\\GameOfLife\\GameOfLife.WebClient\\obj\\",
+        "outputPath": "D:\\work\\GameOfLife-C--Take\\GameOfLife.WebClient\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\az\\AppData\\Roaming\\NuGet\\NuGet.Config"
