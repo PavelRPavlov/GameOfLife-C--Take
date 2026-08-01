@@ -1,0 +1,235 @@
+@page "/admin"
+@using GameOfLife.Core
+@inject GameStore Store
+@inject NavigationManager Nav
+@implements IDisposable
+
+@* The /admin surface (wayfinder #18). One self-gating page keyed on (Status, HasAdminSecret) per #13:
+     NoGame                       -> create form (seed editor #16 + the five POST /game settings)
+     game exists, no admin secret -> redirect to /observe (a secret-less client is an observer)
+     game exists, admin secret    -> control panel: start/stop/pause/resume/step + the live viewport
+   The admin capability is the persisted GUID secret (#14); the store attaches it transparently. *@
+
+<PageTitle>Game of Life — Admin</PageTitle>
+
+@if (Phase is ShellPhase.Ready or ShellPhase.Reconnecting)
+{
+    @if (Store.Status is GameStatus.NoGame)
+    {
+        <h1>Create a game</h1>
+        <div class="admin-create">
+            <SeedEditor @ref="_seed" OnChanged="StateHasChanged" />
+
+            <aside class="admin-settings">
+                <h2>Settings</h2>
+
+                <label class="admin-field">Rule (B/S — B0 rejected)</label>
+                <div class="admin-row">
+                    <span class="admin-affix">B</span>
+                    <input class="admin-in @(RuleValid ? "" : "invalid")" @bind="_ruleB" @bind:event="oninput" />
+                    <span class="admin-affix">/S</span>
+                    <input class="admin-in @(RuleValid ? "" : "invalid")" @bind="_ruleS" @bind:event="oninput" />
+                </div>
+
+                <label class="admin-field">Tick rate — @_tickRate.ToString("0.0") gen/sec</label>
+                <input type="range" min="0.1" max="60" step="0.1" @bind="_tickRate" @bind:event="oninput" class="admin-range" />
+
+                <label class="admin-field">Origin on the torus (decimal, 0 … 2⁶⁴−1)</label>
+                <div class="admin-row">
+                    <span class="admin-affix">x</span>
+                    <input class="admin-in @(OriginXValid ? "" : "invalid")" @bind="_originX" @bind:event="oninput" />
+                    <span class="admin-affix">y</span>
+                    <input class="admin-in @(OriginYValid ? "" : "invalid")" @bind="_originY" @bind:event="oninput" />
+                </div>
+
+                <label class="admin-check">
+                    <input type="checkbox" @bind="_autoStart" /> Auto-start (skip held “Created”)
+                </label>
+
+                <button type="button" class="primary admin-create-btn" disabled="@(!CanCreate)" @onclick="CreateAsync">
+                    @(_autoStart ? "Create & start" : "Create game")
+                </button>
+
+                @if (_alreadyExists)
+                {
+                    <p class="admin-msg admin-msg-warn">
+                        A game already exists — another client created it first.
+                        <button type="button" class="link" @onclick="Observe">Observe it</button>
+                    </p>
+                }
+                @if (_createError is not null)
+                {
+                    <p class="admin-msg admin-msg-error">@_createError</p>
+                }
+            </aside>
+        </div>
+
+        <p><a href="/">← Home</a></p>
+    }
+    else if (!Store.HasAdminSecret)
+    {
+        <p>Redirecting to the observer…</p>
+    }
+    else
+    {
+        <h1>Admin control</h1>
+        <dl class="status">
+            <dt>Status</dt>
+            <dd>@Store.Status</dd>
+            <dt>Generation</dt>
+            <dd>@Store.Generation</dd>
+        </dl>
+
+        <div class="admin-controls">
+            <button type="button" class="primary" disabled="@(!CanStart)" @onclick="() => ControlAsync(Store.StartAsync)">Start</button>
+            <button type="button" class="primary" disabled="@(!CanPause)" @onclick="() => ControlAsync(Store.PauseAsync)">Pause</button>
+            <button type="button" class="primary" disabled="@(!CanResume)" @onclick="() => ControlAsync(Store.ResumeAsync)">Resume</button>
+            <button type="button" class="primary" disabled="@(!CanStep)" @onclick="() => ControlAsync(Store.StepAsync)">Step</button>
+            <button type="button" class="primary" disabled="@(!CanStop)" @onclick="() => ControlAsync(Store.StopAsync)">Stop</button>
+        </div>
+
+        @if (_controlError is not null)
+        {
+            <p class="admin-msg admin-msg-error">@_controlError</p>
+        }
+
+        <GameViewport />
+
+        <p><a href="/">← Home</a></p>
+    }
+}
+
+@code {
+    [CascadingParameter] public ShellPhase Phase { get; set; }
+
+    private SeedEditor? _seed;
+
+    // Create-form settings (the five POST /game fields; #16's resolved defaults).
+    private string _ruleB = "3";
+    private string _ruleS = "23";
+    private double _tickRate = 10;
+    private string _originX = "0";
+    private string _originY = "0";
+    private bool _autoStart;
+
+    private bool _busy;
+    private bool _alreadyExists;
+    private string? _createError;
+    private string? _controlError;
+    private bool _attached;
+
+    private string RuleString => $"B{_ruleB}/S{_ruleS}";
+    private bool RuleValid => Rule.TryParse(RuleString, out _);
+    private bool OriginXValid => ulong.TryParse(_originX, out _);
+    private bool OriginYValid => ulong.TryParse(_originY, out _);
+    private bool CanCreate => !_busy && RuleValid && OriginXValid && OriginYValid;
+
+    // Control enablement mirrors the backend's required-state gates exactly (GameHost):
+    // start←Created, pause←Running, resume←Paused, step←Paused, stop←any existing game.
+    private bool CanStart => !_busy && Store.Status is GameStatus.Created;
+    private bool CanPause => !_busy && Store.Status is GameStatus.Running;
+    private bool CanResume => !_busy && Store.Status is GameStatus.Paused;
+    private bool CanStep => !_busy && Store.Status is GameStatus.Paused;
+    private bool CanStop => !_busy && Store.Status is not GameStatus.NoGame;
+
+    protected override void OnInitialized()
+    {
+        Store.StatusChanged += OnStatusChanged;
+        Store.GenerationChanged += OnGenerationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Phase is not (ShellPhase.Ready or ShellPhase.Reconnecting)) return;
+
+        // A secret-less client on an existing game is an observer — redirect (per #13). No route param;
+        // the gate is the capability. Guarded by the render check so it fires once the condition holds.
+        if (Store.Status is not GameStatus.NoGame && !Store.HasAdminSecret)
+        {
+            Nav.NavigateTo("/observe");
+            return;
+        }
+
+        // The admin's control panel embeds the live viewport, so it must become an attached observer to
+        // receive the snapshot + deltas. Attach once; re-armed when the game is torn down (→ NoGame).
+        if (Store.Status is not GameStatus.NoGame && Store.HasAdminSecret && !_attached)
+        {
+            _attached = true;
+            await Store.AttachAsync();
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        _alreadyExists = false;
+        _createError = null;
+
+        var origin = new Cell(ulong.Parse(_originX), ulong.Parse(_originY));
+        var request = new CreateGameRequest(_seed!.GetSeedBase64(), origin, RuleString, _tickRate, _autoStart);
+
+        var result = await Store.CreateGameAsync(request);
+        result.Match(
+            _ => { /* store set status + secret → the gate flips to the control panel */ },
+            error =>
+            {
+                switch (error)
+                {
+                    case GameError.AlreadyExists:
+                        _alreadyExists = true;
+                        break;
+                    case GameError.ValidationRejected v:
+                        _createError = $"The server rejected the settings: {v.Details}";
+                        break;
+                    case GameError.Transport t:
+                        _createError = $"Couldn't reach the server: {t.Detail}";
+                        break;
+                    default:
+                        _createError = "Couldn't create the game.";
+                        break;
+                }
+            });
+
+        _busy = false;
+    }
+
+    private async Task ControlAsync(Func<CancellationToken, Task<Result<ControlOutcome, GameError>>> op)
+    {
+        _busy = true;
+        _controlError = null;
+
+        var result = await op(CancellationToken.None);
+        if (result.IsError)
+        {
+            // Forbidden means the stored secret was stale — the store cleared it, so re-rendering drops
+            // us to the observer redirect. Other errors surface inline.
+            _controlError = result.Error switch
+            {
+                GameError.Forbidden => null,
+                GameError.InvalidState => "That action isn't valid right now.",
+                GameError.NoGame => "The game is no longer running.",
+                GameError.Transport t => $"Couldn't reach the server: {t.Detail}",
+                _ => "The action failed.",
+            };
+        }
+
+        _busy = false;
+    }
+
+    private void Observe() => Nav.NavigateTo("/observe");
+
+    private void OnStatusChanged(GameStatus status)
+    {
+        // When the game is torn down, re-arm attach so a freshly created game re-attaches its viewport.
+        if (status is GameStatus.NoGame) _attached = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnGenerationChanged(long _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Store.StatusChanged -= OnStatusChanged;
+        Store.GenerationChanged -= OnGenerationChanged;
+    }
+}

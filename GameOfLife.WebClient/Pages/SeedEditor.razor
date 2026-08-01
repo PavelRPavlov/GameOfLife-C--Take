@@ -1,0 +1,160 @@
+@using GameOfLife.WebClient.Communication.Seeding
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@* The seed-authoring surface (wayfinder #16, built into the create page #18 — its sole consumer).
+   Canvas-forward layout A: the fixed 100×100 painting canvas dominates, with a tool row above and
+   preset/RLE mechanisms beside it. The board (SeedBoard) is authoritative C#; seedCanvas.js only
+   renders it and reports strokes. The parent (Admin) reads GetSeedBase64() on create. *@
+
+<div class="seed-editor">
+    <div class="seed-tools">
+        <button type="button" class="seed-tool @(_tool == "paint" ? "on" : "")" @onclick='() => SetTool("paint")'>Paint</button>
+        <button type="button" class="seed-tool @(_tool == "erase" ? "on" : "")" @onclick='() => SetTool("erase")'>Erase</button>
+        <span class="seed-sep"></span>
+        <button type="button" class="seed-tool" @onclick="Clear">Clear</button>
+        <button type="button" class="seed-tool" @onclick="Invert">Invert</button>
+        <button type="button" class="seed-tool" @onclick="Randomize">Random</button>
+        <span class="seed-count">@_board.AliveCount live</span>
+    </div>
+
+    <canvas @ref="_canvas" class="seed-canvas" width="@(SeedBoard.Size * Px)" height="@(SeedBoard.Size * Px)"></canvas>
+
+    <div class="seed-mechanisms">
+        <div class="seed-preset">
+            <label>Preset&nbsp;
+                <select @bind="_presetIndex">
+                    @for (var i = 0; i < SeedPatterns.All.Count; i++)
+                    {
+                        var p = SeedPatterns.All[i];
+                        <option value="@i">@p.Name (@p.Category)</option>
+                    }
+                </select>
+            </label>
+            <button type="button" class="seed-tool" @onclick="StampPreset">Place at center</button>
+        </div>
+
+        <div class="seed-import">
+            <label for="rle">Import RLE / plaintext</label>
+            <textarea id="rle" class="seed-rle" @bind="_rle" placeholder="bo$2bo$3o!   or   .O./..O/OOO"></textarea>
+            <div class="seed-import-row">
+                <button type="button" class="seed-tool" @onclick="ParseImport">Load to grid</button>
+                @if (_clamped)
+                {
+                    <span class="seed-warn">Some cells were outside the 100×100 grid and dropped.</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int Px = 4; // 100 cells × 4px = a 400px authoring canvas
+
+    private readonly SeedBoard _board = new();
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<SeedEditor>? _self;
+    private int _id;
+    private bool _ready;
+
+    private string _tool = "paint";
+    private string _rle = "";
+    private int _presetIndex;
+    private bool _clamped;
+
+    /// <summary>Raised after any board change so the parent can re-evaluate its Create affordance.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>The current alive-cell count (for the parent's summary).</summary>
+    public int AliveCount => _board.AliveCount;
+
+    /// <summary>The seed as the backend wants it — base64 of the 1250-byte packing.</summary>
+    public string GetSeedBase64() => _board.ToBase64();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Absolute path (not "./js/…"): the .NET static-asset importmap remaps relative specifiers to a
+        // fingerprinted alias the WebAssembly DevServer doesn't serve. Mirrors GameViewport (#15).
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/seedCanvas.js");
+        _self = DotNetObjectReference.Create(this);
+        _id = await _module.InvokeAsync<int>("create", _canvas, _self, SeedBoard.Size, Px);
+        _ready = true;
+    }
+
+    [JSInvokable]
+    public void OnPaint(int x, int y, bool alive)
+    {
+        // Authoritative update; the canvas already drew it optimistically, so no re-render here.
+        _board.Set(x, y, alive);
+    }
+
+    [JSInvokable]
+    public async Task OnStrokeEnd()
+    {
+        await NotifyChangedAsync();
+    }
+
+    private async Task SetTool(string tool)
+    {
+        _tool = tool;
+        if (_ready) await _module!.InvokeVoidAsync("setTool", _id, tool);
+    }
+
+    private Task StampPreset()
+    {
+        _board.StampCentered(SeedPatterns.All[_presetIndex]);
+        return PushAsync();
+    }
+
+    private Task Clear()
+    {
+        _board.Clear();
+        return PushAsync();
+    }
+
+    private Task Invert()
+    {
+        _board.Invert();
+        return PushAsync();
+    }
+
+    private Task Randomize()
+    {
+        _board.Randomize(Random.Shared, 0.18);
+        return PushAsync();
+    }
+
+    private Task ParseImport()
+    {
+        var result = SeedText.Parse(_rle);
+        _clamped = result.Clamped;
+        _board.Load(result.Cells);
+        return PushAsync();
+    }
+
+    // Push the authoritative board to the canvas after a bulk op, then notify the parent.
+    private async Task PushAsync()
+    {
+        if (_ready) await _module!.InvokeVoidAsync("render", _id, _board.ToPackedBytes());
+        await NotifyChangedAsync();
+    }
+
+    private async Task NotifyChangedAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.InvokeVoidAsync("dispose", _id); } catch { /* teardown races on unload */ }
+            try { await _module.DisposeAsync(); } catch { }
+        }
+        _self?.Dispose();
+    }
+}
