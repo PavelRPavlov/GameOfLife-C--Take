@@ -103,6 +103,36 @@ public sealed class GameStoreTests
     }
 
     [Fact]
+    public void Connection_state_changes_are_re_surfaced_from_the_stream()
+    {
+        var (store, _, stream, _) = NewStore();
+
+        var seen = new List<StreamConnectionState>();
+        store.ConnectionStateChanged += s => seen.Add(s);
+
+        stream.PushConnectionState(StreamConnectionState.Reconnecting);
+        stream.PushConnectionState(StreamConnectionState.Reconnected);
+        stream.PushConnectionState(StreamConnectionState.Closed);
+
+        Assert.Equal(
+            [StreamConnectionState.Reconnecting, StreamConnectionState.Reconnected, StreamConnectionState.Closed],
+            seen);
+    }
+
+    [Fact]
+    public async Task Disposing_the_store_unsubscribes_from_stream_connection_state()
+    {
+        var (store, _, stream, _) = NewStore();
+        var seen = 0;
+        store.ConnectionStateChanged += _ => seen++;
+
+        await store.DisposeAsync();
+        stream.PushConnectionState(StreamConnectionState.Reconnecting);
+
+        Assert.Equal(0, seen);
+    }
+
+    [Fact]
     public async Task Create_success_persists_the_admin_secret()
     {
         var (store, api, _, secret) = NewStore();

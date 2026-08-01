@@ -17,13 +17,16 @@ builder.Services.AddScoped(sp => new HttpClient
     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
 });
 
-// The integration seam (wayfinder #12/#23): a single GameStore over the real REST + localStorage
-// implementations. IGameStream (the SignalR transport, #25) is registered by that ticket; until then
-// nothing resolves GameStore, so the incomplete graph is inert.
+// The integration seam (wayfinder #12/#23/#24/#25): a single GameStore over the real REST + SignalR +
+// localStorage implementations. With IGameStream now registered the DI graph is complete and GameStore
+// resolves; the pages (#17/#18/#19) consume it.
 builder.Services.AddSingleton<IAdminSecretStore, LocalStorageAdminSecretStore>();
 builder.Services.AddSingleton<IGameApi>(sp => new HttpGameApi(
     new HttpClient { BaseAddress = new Uri(backendBaseAddress) },
     sp.GetRequiredService<IAdminSecretStore>()));
+// The SignalR hub is a sibling route on the same backend origin (see GameHost.HubUrl = "/hubs/game").
+builder.Services.AddSingleton<IGameStream>(_ => new SignalRGameStream(
+    new Uri(new Uri(backendBaseAddress), "hubs/game").ToString()));
 builder.Services.AddSingleton<GameStore>();
 
 await builder.Build().RunAsync();
