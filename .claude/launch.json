@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "webclient",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "GameOfLife.WebClient/GameOfLife.WebClient.csproj", "--launch-profile", "http"],
+      "port": 5292
+    }
+  ]
+}

@@ -28,5 +28,8 @@ builder.Services.AddSingleton<IGameApi>(sp => new HttpGameApi(
 builder.Services.AddSingleton<IGameStream>(_ => new SignalRGameStream(
     new Uri(new Uri(backendBaseAddress), "hubs/game").ToString()));
 builder.Services.AddSingleton<GameStore>();
+// The app-shell connection state machine (Connecting…→Ready→Reconnecting…→Disconnected/Retry) that
+// MainLayout drives on first render. App-lifetime like the shell itself; wraps the single GameStore.
+builder.Services.AddSingleton<ShellConnection>();
 
 await builder.Build().RunAsync();
