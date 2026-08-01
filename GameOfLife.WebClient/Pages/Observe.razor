@@ -1,0 +1,81 @@
+@page "/observe"
+@using GameOfLife.Core
+@inject GameStore Store
+@implements IDisposable
+
+@* The read-only observer surface (wayfinder #19). The /observe route: a secret-less viewer onto the
+   single game. It shows live status + generation and embeds the shared <GameViewport/> (#15), driven by
+   GameStore.AttachAsync (subscribe-first snapshot, then live deltas) — and carries no control
+   affordances, since a viewer holds no admin capability (#14). It is the strict read-only subset of the
+   admin control panel (#18): same status readout, same viewport, minus the controls. *@
+
+<PageTitle>Game of Life — Observer</PageTitle>
+
+<h1>Observer</h1>
+
+@if (Phase is ShellPhase.Ready or ShellPhase.Reconnecting)
+{
+    @if (Store.Status is GameStatus.NoGame)
+    {
+        @* No game exists, or the game being watched was stopped (→ NoGame): nothing to observe. *@
+        <p>No game is running.</p>
+        <p><a href="/">← Home</a></p>
+    }
+    else
+    {
+        <dl class="status">
+            <dt>Status</dt>
+            <dd>@Store.Status</dd>
+            <dt>Generation</dt>
+            <dd>@Store.Generation</dd>
+        </dl>
+
+        <GameViewport />
+
+        <p><a href="/">← Home</a></p>
+    }
+}
+@* Connecting / Disconnected: the shell banner carries the message and the Retry — nothing to gate yet. *@
+
+@code {
+    // The shell's connection phase, cascaded from MainLayout. Content only renders once status is known
+    // (Ready/Reconnecting), so the observer never flashes a stale grid before the shell has re-gated.
+    [CascadingParameter] public ShellPhase Phase { get; set; }
+
+    private bool _attached;
+
+    protected override void OnInitialized()
+    {
+        Store.StatusChanged += OnStatusChanged;
+        Store.GenerationChanged += OnGenerationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Phase is not (ShellPhase.Ready or ShellPhase.Reconnecting)) return;
+
+        // Become an attached observer once a game exists, so the embedded viewport receives the snapshot
+        // and subsequent deltas. Attach once; re-armed when the game is torn down (→ NoGame) so a freshly
+        // created game re-attaches. No admin secret is needed to observe (#14) — this page never checks it.
+        if (Store.Status is not GameStatus.NoGame && !_attached)
+        {
+            _attached = true;
+            await Store.AttachAsync();
+        }
+    }
+
+    private void OnStatusChanged(GameStatus status)
+    {
+        // When the game is torn down, re-arm attach so a later game re-attaches the viewport.
+        if (status is GameStatus.NoGame) _attached = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnGenerationChanged(long _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Store.StatusChanged -= OnStatusChanged;
+        Store.GenerationChanged -= OnGenerationChanged;
+    }
+}
