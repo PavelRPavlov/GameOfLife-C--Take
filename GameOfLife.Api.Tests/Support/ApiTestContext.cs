@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using GameOfLife.Core;
 using GameOfLife.Api.Features.CreateGame;
 using GameOfLife.Api.Game;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -24,9 +25,32 @@ public sealed class ApiTestContext : IAsyncDisposable
     private readonly WebApplicationFactory<Program> _factory;
     private readonly List<HubConnection> _connections = [];
 
-    public ApiTestContext()
+    /// <summary>Parameterless entry point used both directly and by the Reqnroll BoDi container.</summary>
+    public ApiTestContext() : this(null, false) { }
+
+    /// <summary>
+    /// Builds a context pinned to a specific environment and, optionally, with the test-only throwing
+    /// route wired in — used by exception-handling tests. A static factory (not a public constructor)
+    /// so the BoDi container keeps seeing only the parameterless constructor it can resolve.
+    /// </summary>
+    public static ApiTestContext Create(string? environment = null, bool withThrowingEndpoint = false) =>
+        new(environment, withThrowingEndpoint);
+
+    private ApiTestContext(string? environment, bool withThrowingEndpoint)
     {
-        _factory = new WebApplicationFactory<Program>();
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            // The global exception handler is gated to non-Development, so exception-path tests pin the
+            // environment explicitly (e.g. "Production") rather than depending on the host default.
+            if (environment is not null)
+                builder.UseEnvironment(environment);
+
+            // A test-only route that throws, injected so an unhandled exception can be driven through
+            // the real pipeline. Never added to the shipped API.
+            if (withThrowingEndpoint)
+                builder.ConfigureServices(services =>
+                    services.AddSingleton<IStartupFilter, ThrowingEndpoint.StartupFilter>());
+        });
         Client = _factory.CreateClient();
     }
 

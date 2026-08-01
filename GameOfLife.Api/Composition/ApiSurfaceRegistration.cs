@@ -16,6 +16,12 @@ public static class ApiSurfaceRegistration
     {
         services.AddOpenApi();
 
+        // Global safety net for unexpected exceptions: a generic 500 ProblemDetails (with a traceId,
+        // no exception detail). Registered here but only activated outside Development — see
+        // UseGameApiPipeline. AddProblemDetails supplies the traceId extension and status-derived title.
+        services.AddProblemDetails();
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+
         // Enums cross the REST wire as strings ("Running", "Created", ...).
         services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -40,6 +46,13 @@ public static class ApiSurfaceRegistration
 
     public static WebApplication UseGameApiPipeline(this WebApplication app)
     {
+        // Must be the first middleware so it wraps everything downstream. Gated off in Development: the
+        // host auto-registers the Developer Exception Page there, and we keep it so local developers
+        // still get full stack traces in the browser. Everywhere else the global handler owns faults
+        // and guarantees no exception detail leaves the process.
+        if (!app.Environment.IsDevelopment())
+            app.UseExceptionHandler();
+
         if (app.Environment.IsDevelopment())
             app.MapOpenApi();
 
