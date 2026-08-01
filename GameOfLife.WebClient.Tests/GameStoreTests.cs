@@ -160,4 +160,70 @@ public sealed class GameStoreTests
         Assert.True(result.IsError);
         Assert.False(secret.HasSecret);
     }
+
+    [Fact]
+    public async Task RefreshStatus_seeds_status_and_generation_without_populating_live_cells()
+    {
+        var (store, api, _, _) = NewStore();
+        // The snapshot carries cells, but the status-seed path must discard them.
+        api.EnqueueSnapshot(Snap(7, GameStatus.Running, C(1, 1), C(2, 2)));
+
+        var statusEvents = new List<GameStatus>();
+        var snapshotEvents = 0;
+        store.StatusChanged += statusEvents.Add;
+        store.SnapshotApplied += _ => snapshotEvents++;
+
+        var result = await store.RefreshStatusAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(GameStatus.Running, result.Value);
+        Assert.Equal(GameStatus.Running, store.Status);
+        Assert.Equal(7, store.Generation);
+        Assert.Empty(store.LiveCells);              // cells discarded — not an attach
+        Assert.Equal([GameStatus.Running], statusEvents);
+        Assert.Equal(0, snapshotEvents);            // no full-repaint signal — it is not a snapshot adoption
+    }
+
+    [Fact]
+    public async Task RefreshStatus_on_404_seeds_NoGame()
+    {
+        var (store, api, _, _) = NewStore();
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+
+        var result = await store.RefreshStatusAsync();
+
+        Assert.True(result.IsError);
+        Assert.IsType<GameError.NoGame>(result.Error);
+        Assert.Equal(GameStatus.NoGame, store.Status);
+    }
+
+    [Fact]
+    public async Task RefreshStatus_transport_failure_is_distinguishable_from_NoGame()
+    {
+        var (store, api, _, _) = NewStore();
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.Transport("offline")));
+
+        var result = await store.RefreshStatusAsync();
+
+        Assert.True(result.IsError);
+        Assert.IsType<GameError.Transport>(result.Error); // caller can tell "can't reach server" from NoGame
+    }
+
+    [Fact]
+    public async Task RefreshStatus_does_not_arm_the_attach_buffer_so_deltas_stay_dropped()
+    {
+        var (store, api, stream, _) = NewStore();
+        api.EnqueueSnapshot(Snap(7, GameStatus.Running, C(1, 1)));
+        await store.RefreshStatusAsync();
+
+        var applied = 0;
+        store.DeltaApplied += _ => applied++;
+
+        // Not observing (no attach) — a delta racing the status seed must be dropped, not buffered/applied.
+        stream.PushDelta(new Delta(7, 8, [C(5, 5)], []));
+
+        Assert.Equal(0, applied);
+        Assert.Empty(store.LiveCells);
+        Assert.Equal(7, store.Generation); // unchanged by the dropped delta
+    }
 }

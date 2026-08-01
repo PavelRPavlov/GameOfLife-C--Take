@@ -95,6 +95,37 @@ public sealed class GameStore : IAsyncDisposable
     }
 
     /// <summary>
+    /// Seed <see cref="Status"/> and <see cref="Generation"/> from the <em>current</em> server state
+    /// without becoming an attached observer — the shell/home startup path. SignalR is push-only and
+    /// <see cref="ConnectAsync"/> only subscribes to <em>future</em> transitions, so a shell that connects
+    /// while a game already sits in <c>Running</c>/<c>Paused</c> would otherwise never learn that (no push
+    /// arrives until the next transition) and would wrongly keep the default <see cref="GameStatus.NoGame"/>.
+    ///
+    /// This does one <c>GET /snapshot</c> and applies <em>only</em> <c>status</c> and <c>gen</c>: it does
+    /// not touch the live-cell set nor arm the attach buffer, so it is independent of — and safe alongside —
+    /// <see cref="AttachAsync"/>. <see cref="GameError.NoGame"/> (404) seeds <see cref="GameStatus.NoGame"/>.
+    /// Returns the fetched status on success, or the <see cref="GameError"/> so the caller can distinguish
+    /// <see cref="GameError.NoGame"/> from a <see cref="GameError.Transport"/> failure and retry accordingly.
+    /// </summary>
+    public async Task<Result<GameStatus, GameError>> RefreshStatusAsync(CancellationToken ct = default)
+    {
+        var result = await _api.GetSnapshotAsync(ct);
+        return result.Match(
+            snapshot =>
+            {
+                SetStatus(snapshot.Status);
+                SetGeneration(snapshot.Gen);
+                return Result<GameStatus, GameError>.Ok(snapshot.Status);
+            },
+            error =>
+            {
+                if (error is GameError.NoGame)
+                    SetStatus(GameStatus.NoGame);
+                return Result<GameStatus, GameError>.Err(error);
+            });
+    }
+
+    /// <summary>
     /// Run the attach protocol and start observing the live cell field (the observer page's path).
     /// Buffering is armed <em>before</em> the connection/snapshot so no delta racing the fetch is lost.
     /// Returns the bootstrap snapshot, or the failure (e.g. <see cref="GameError.NoGame"/>).
