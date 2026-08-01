@@ -20,8 +20,27 @@ public interface IGameApi
 }
 
 /// <summary>
+/// The transport's connection lifecycle, mapped from the underlying <c>HubConnection</c>. Surfaced so
+/// the app shell can drive its Connecting… → Connected → Reconnecting… → Disconnected/Retry state
+/// machine: auto-reconnect fires <see cref="Reconnecting"/> then <see cref="Reconnected"/>; when the
+/// finite retry policy is exhausted the connection fires <see cref="Closed"/> (the manual-Retry state).
+/// </summary>
+public enum StreamConnectionState
+{
+    /// <summary>Auto-reconnect has started; the connection is temporarily down.</summary>
+    Reconnecting,
+
+    /// <summary>Auto-reconnect succeeded; pushes will resume (an observer re-syncs via the gap rule).</summary>
+    Reconnected,
+
+    /// <summary>The connection is closed and will not retry on its own — the shell falls back to manual Retry.</summary>
+    Closed,
+}
+
+/// <summary>
 /// A thin transport over the push-only SignalR hub: connect, then surface the two <em>raw</em>
-/// server pushes. It holds no domain state and does no reconcile — that is <see cref="GameStore"/>'s job.
+/// server pushes plus the connection lifecycle. It holds no domain state and does no reconcile — that
+/// is <see cref="GameStore"/>'s job.
 /// </summary>
 public interface IGameStream : IAsyncDisposable
 {
@@ -30,6 +49,9 @@ public interface IGameStream : IAsyncDisposable
 
     /// <summary>Raw <c>ReceiveStatus</c> push (fired on every backend lifecycle transition).</summary>
     event Action<GameStatus> StatusReceived;
+
+    /// <summary>The transport's connection lifecycle (auto-reconnect and final close).</summary>
+    event Action<StreamConnectionState> ConnectionStateChanged;
 
     Task ConnectAsync(CancellationToken ct = default);
 }

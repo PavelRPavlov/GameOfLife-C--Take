@@ -46,6 +46,7 @@ public sealed class GameStore : IAsyncDisposable
         _secretStore = secretStore;
         _stream.DeltaReceived += OnDeltaReceived;
         _stream.StatusReceived += OnStatusReceived;
+        _stream.ConnectionStateChanged += OnConnectionStateChanged;
     }
 
     /// <summary>The live cell set at the current <see cref="Generation"/>.</summary>
@@ -71,6 +72,15 @@ public sealed class GameStore : IAsyncDisposable
 
     /// <summary>Raised when a delta is applied to the live set — repaint incrementally.</summary>
     public event Action<Delta>? DeltaApplied;
+
+    /// <summary>
+    /// Raised when the transport's connection lifecycle changes (auto-reconnect and final close),
+    /// re-surfaced from <see cref="IGameStream"/> so the shell (<c>MainLayout</c>) can drive its
+    /// Connecting… → Reconnecting… → Disconnected/Retry state machine. On a successful reconnect the shell
+    /// re-runs its lightweight status fetch to re-gate from truth; an attached observer resyncs on its own
+    /// through the existing gap rule as soon as deltas resume, so the store needs no reconnect handling here.
+    /// </summary>
+    public event Action<StreamConnectionState>? ConnectionStateChanged;
 
     /// <summary>
     /// Connect the stream for reactive status only, without adopting a cell baseline (the home page's
@@ -146,6 +156,8 @@ public sealed class GameStore : IAsyncDisposable
     }
 
     private void OnStatusReceived(GameStatus status) => SetStatus(status);
+
+    private void OnConnectionStateChanged(StreamConnectionState state) => ConnectionStateChanged?.Invoke(state);
 
     private void OnDeltaReceived(Delta delta)
     {
@@ -258,6 +270,7 @@ public sealed class GameStore : IAsyncDisposable
     {
         _stream.DeltaReceived -= OnDeltaReceived;
         _stream.StatusReceived -= OnStatusReceived;
+        _stream.ConnectionStateChanged -= OnConnectionStateChanged;
         await _stream.DisposeAsync();
     }
 }

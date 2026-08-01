@@ -96,7 +96,7 @@ public sealed class HttpGameApi : IGameApi
             async (response, token) =>
             {
                 var dto = await response.Content.ReadFromJsonAsync<SnapshotResponseDto>(WireJson.Options, token);
-                var cells = dto!.Cells.Select(ToCell).ToList();
+                var cells = dto!.Cells.Select(c => c.ToDomain()).ToList();
                 return new Snapshot(dto.Gen, dto.Status, dto.TickRate, cells);
             },
             status => status switch
@@ -148,11 +148,6 @@ public sealed class HttpGameApi : IGameApi
             return Result<T, GameError>.Err(new GameError.Transport(ex.Message));
         }
     }
-
-    private static Cell ToCell(CellDto dto) =>
-        new(
-            ulong.Parse(dto.X, NumberStyles.None, CultureInfo.InvariantCulture),
-            ulong.Parse(dto.Y, NumberStyles.None, CultureInfo.InvariantCulture));
 
     // ---- Client-side validation (mirrors the backend's contract) ----
 

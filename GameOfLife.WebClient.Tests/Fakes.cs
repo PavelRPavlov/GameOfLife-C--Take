@@ -56,6 +56,7 @@ internal sealed class FakeGameStream : IGameStream
 {
     public event Action<Delta>? DeltaReceived;
     public event Action<GameStatus>? StatusReceived;
+    public event Action<StreamConnectionState>? ConnectionStateChanged;
 
     public bool Connected { get; private set; }
 
@@ -67,6 +68,7 @@ internal sealed class FakeGameStream : IGameStream
 
     public void PushDelta(Delta delta) => DeltaReceived?.Invoke(delta);
     public void PushStatus(GameStatus status) => StatusReceived?.Invoke(status);
+    public void PushConnectionState(StreamConnectionState state) => ConnectionStateChanged?.Invoke(state);
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
