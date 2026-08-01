@@ -105,3 +105,5 @@ StyleCopReport.xml
 # Crash / dump files
 *.dmp
 *.mdmp
+# Reqnroll generated feature code-behind (regenerated on build)
+*.feature.cs
