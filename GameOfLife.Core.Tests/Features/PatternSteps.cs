@@ -1,113 +1,53 @@
-using GameOfLife.Core;
+using GameOfLife.Core.Tests.Drivers;
+using GameOfLife.Core.Tests.Support;
 using Reqnroll;
 
 namespace GameOfLife.Core.Tests.Features;
 
+/// <summary>
+/// Thin Gherkin glue for the pattern-evolution vertical. All seeding, advancing, and scenario state
+/// live on the context-injected <see cref="WorldDriver"/>; expected shapes come from
+/// <see cref="Patterns"/>. Steps only translate Gherkin to driver calls and assert.
+/// </summary>
 [Binding]
-public sealed class PatternSteps
+public sealed class PatternSteps(WorldDriver world)
 {
-    // A glider (moving down-right, +1/+1 every 4 generations), cells relative to its top-left.
-    private static readonly (int dx, int dy)[] GliderOffsets =
-    [
-        (1, 0),
-        (2, 1),
-        (0, 2), (1, 2), (2, 2),
-    ];
-
-    private GameEngine _engine = null!;
-    private Cell _gliderOrigin;
-
     [Given(@"a ""(.*)"" world seeded with a horizontal blinker centred at \((\d+), (\d+)\)")]
-    public void GivenHorizontalBlinker(string rule, ulong cx, ulong cy)
-    {
-        _engine = new GameEngine(HorizontalBlinker(cx, cy), Rule.Parse(rule));
-    }
+    public void GivenHorizontalBlinker(string rule, ulong cx, ulong cy) =>
+        world.SeedHorizontalBlinker(rule, cx, cy);
 
     [Given(@"a ""(.*)"" world seeded with a glider at the torus origin corner")]
-    public void GivenGliderAtCorner(string rule)
-    {
-        // Origin placed so the glider straddles the seam on both axes.
-        _gliderOrigin = new Cell(ulong.MaxValue - 1, ulong.MaxValue - 1);
-        _engine = new GameEngine(GliderAt(_gliderOrigin, 0, 0), Rule.Parse(rule));
-    }
+    public void GivenGliderAtCorner(string rule) => world.SeedGliderAtCorner(rule);
 
     [Given(@"a ""(.*)"" world seeded with a 2x2 block at \((\d+), (\d+)\)")]
-    public void GivenBlock(string rule, ulong x, ulong y)
-    {
-        _engine = new GameEngine(Block(x, y), Rule.Parse(rule));
-    }
+    public void GivenBlock(string rule, ulong x, ulong y) => world.SeedBlock(rule, x, y);
 
     [Given(@"a ""(.*)"" world seeded with no live cells")]
-    public void GivenEmpty(string rule)
-    {
-        _engine = new GameEngine([], Rule.Parse(rule));
-    }
+    public void GivenEmpty(string rule) => world.CreateWorld(rule);
 
     [When(@"the world advances (\d+) generation(?:s)?")]
-    public void WhenAdvance(int generations)
-    {
-        for (var i = 0; i < generations; i++)
-            _engine.Advance();
-    }
+    public void WhenAdvance(int generations) => world.Advance(generations);
 
     [Then(@"the live cells are a horizontal blinker centred at \((\d+), (\d+)\)")]
-    public void ThenHorizontalBlinker(ulong cx, ulong cy)
-    {
-        Assert.Equal(HorizontalBlinker(cx, cy).ToHashSet(), _engine.Current.LiveCells);
-    }
+    public void ThenHorizontalBlinker(ulong cx, ulong cy) =>
+        Assert.Equal(Patterns.HorizontalBlinker(cx, cy).ToHashSet(), world.LiveCells);
 
     [Then(@"the live cells are a vertical blinker centred at \((\d+), (\d+)\)")]
-    public void ThenVerticalBlinker(ulong cx, ulong cy)
-    {
-        var expected = new HashSet<Cell>
-        {
-            new(cx, unchecked(cy - 1)),
-            new(cx, cy),
-            new(cx, unchecked(cy + 1)),
-        };
-        Assert.Equal(expected, _engine.Current.LiveCells);
-    }
+    public void ThenVerticalBlinker(ulong cx, ulong cy) =>
+        Assert.Equal(Patterns.VerticalBlinker(cx, cy).ToHashSet(), world.LiveCells);
 
     [Then(@"the glider has translated by \((\d+), (\d+)\) with wraparound")]
-    public void ThenGliderTranslated(ulong dx, ulong dy)
-    {
-        var expected = GliderAt(_gliderOrigin, dx, dy).ToHashSet();
-        Assert.Equal(expected, _engine.Current.LiveCells);
-    }
+    public void ThenGliderTranslated(ulong dx, ulong dy) =>
+        Assert.Equal(Patterns.GliderAt(world.GliderOrigin, dx, dy).ToHashSet(), world.LiveCells);
 
     [Then(@"the live cells are exactly the 2x2 block at \((\d+), (\d+)\)")]
-    public void ThenBlock(ulong x, ulong y)
-    {
-        Assert.Equal(Block(x, y).ToHashSet(), _engine.Current.LiveCells);
-    }
+    public void ThenBlock(ulong x, ulong y) =>
+        Assert.Equal(Patterns.Block(x, y).ToHashSet(), world.LiveCells);
 
     [Then(@"the world has no live cells")]
-    public void ThenEmpty()
-    {
-        Assert.Empty(_engine.Current.LiveCells);
-    }
+    public void ThenEmpty() => Assert.Empty(world.LiveCells);
 
     [Then(@"creating a world with rule ""(.*)"" is rejected")]
-    public void ThenRuleRejected(string rule)
-    {
-        Assert.Throws<FormatException>(() => Rule.Parse(rule));
-    }
-
-    private static Cell[] HorizontalBlinker(ulong cx, ulong cy) =>
-    [
-        new(unchecked(cx - 1), cy),
-        new(cx, cy),
-        new(unchecked(cx + 1), cy),
-    ];
-
-    private static Cell[] Block(ulong x, ulong y) =>
-    [
-        new(x, y), new(unchecked(x + 1), y),
-        new(x, unchecked(y + 1)), new(unchecked(x + 1), unchecked(y + 1)),
-    ];
-
-    private static IEnumerable<Cell> GliderAt(Cell origin, ulong dx, ulong dy) =>
-        GliderOffsets.Select(o => new Cell(
-            unchecked(origin.X + (ulong)o.dx + dx),
-            unchecked(origin.Y + (ulong)o.dy + dy)));
+    public void ThenRuleRejected(string rule) =>
+        Assert.Throws<FormatException>(() => world.CreateWorld(rule));
 }

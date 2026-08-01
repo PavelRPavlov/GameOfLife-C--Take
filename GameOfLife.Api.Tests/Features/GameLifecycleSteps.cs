@@ -1,58 +1,48 @@
 using System.Net;
-using System.Net.Http.Json;
 using GameOfLife.Api.Contracts;
-using GameOfLife.Api.Tests.Support;
+using GameOfLife.Api.Tests.Drivers;
 using Reqnroll;
 
 namespace GameOfLife.Api.Tests.Features;
 
+/// <summary>
+/// Thin Gherkin glue for the single-game admin/observer vertical. All acting and state live on the
+/// context-injected <see cref="AdminDriver"/>/<see cref="ObserverDriver"/> (which share one world);
+/// the world's teardown lives in <see cref="Support.ScenarioHooks"/>. Steps only translate Gherkin
+/// to driver calls and assert.
+/// </summary>
 [Binding]
-public sealed class GameLifecycleSteps
+public sealed class GameLifecycleSteps(AdminDriver admin, ObserverDriver observer)
 {
-    private readonly ApiTestContext _ctx = new();
-    private ObserverClient? _observer;
-    private CreateGameResponse? _game;
-    private HttpResponseMessage? _lastControl;
-    private HttpResponseMessage? _secondCreate;
-
     [Given(@"an observer is connected")]
-    public async Task GivenObserverConnected()
-    {
-        _observer = await _ctx.ConnectObserverAsync();
-    }
+    public Task GivenObserverConnected() => observer.Connect();
 
     [When(@"the admin creates a game")]
-    public async Task WhenAdminCreatesGame()
-    {
-        _game = await _ctx.CreateGameAsync();
-    }
+    public Task WhenAdminCreatesGame() => admin.CreateGame();
 
     [When(@"another client tries to create a game")]
-    public async Task WhenAnotherClientCreates()
-    {
-        _secondCreate = await _ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate()));
-    }
+    public Task WhenAnotherClientCreates() => admin.AnotherClientTriesToCreate();
 
     [When(@"the admin starts the game")]
-    public async Task WhenAdminStarts() => _lastControl = await _ctx.ControlAsync("start", _game!.AdminSecret);
+    public Task WhenAdminStarts() => admin.Start();
 
     [When(@"the admin pauses the game")]
-    public async Task WhenAdminPauses() => _lastControl = await _ctx.ControlAsync("pause", _game!.AdminSecret);
+    public Task WhenAdminPauses() => admin.Pause();
 
     [When(@"the admin stops the game")]
-    public async Task WhenAdminStops() => _lastControl = await _ctx.ControlAsync("stop", _game!.AdminSecret);
+    public Task WhenAdminStops() => admin.Stop();
 
     [Then(@"the create response carries an admin secret")]
     public void ThenCreateCarriesSecret()
     {
-        Assert.True(Guid.TryParse(_game!.AdminSecret, out _));
+        Assert.True(Guid.TryParse(admin.AdminSecret, out _));
     }
 
     [Then(@"the control response status is ""(.*)""")]
     public async Task ThenControlStatus(string expected)
     {
-        Assert.Equal(HttpStatusCode.OK, _lastControl!.StatusCode);
-        var body = await _lastControl.Content.ReadFromJsonAsync<ControlResponse>(ApiTestContext.Json);
+        Assert.Equal(HttpStatusCode.OK, admin.LastControl!.StatusCode);
+        var body = await admin.ReadLastControl();
         Assert.Equal(Enum.Parse<GameStatus>(expected), body!.Status);
     }
 
@@ -60,23 +50,21 @@ public sealed class GameLifecycleSteps
     public async Task ThenObserverToldStatus(string expected)
     {
         var status = Enum.Parse<GameStatus>(expected);
-        var seen = await _observer!.WaitForAsync(o => o.Statuses.Contains(status));
-        Assert.True(seen, $"observer never saw {status}; saw [{string.Join(", ", _observer.Statuses)}]");
+        var seen = await observer.WaitForStatus(status);
+        Assert.True(seen, $"observer never saw {status}; saw [{string.Join(", ", observer.Statuses)}]");
     }
 
     [Then(@"creating a new game issues a different admin secret")]
     public async Task ThenNewGameDifferentSecret()
     {
-        var next = await _ctx.CreateGameAsync();
-        Assert.NotEqual(_game!.AdminSecret, next.AdminSecret);
+        var previous = admin.AdminSecret;
+        var next = await admin.CreateGame();
+        Assert.NotEqual(previous, next.AdminSecret);
     }
 
     [Then(@"the second create attempt is refused as a conflict")]
     public void ThenSecondCreateConflict()
     {
-        Assert.Equal(HttpStatusCode.Conflict, _secondCreate!.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, admin.RivalCreate!.StatusCode);
     }
-
-    [AfterScenario]
-    public async Task Cleanup() => await _ctx.DisposeAsync();
 }
