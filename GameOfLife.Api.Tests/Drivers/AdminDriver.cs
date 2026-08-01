@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
-using GameOfLife.Api.Contracts;
+using GameOfLife.Api.Features.CreateGame;
+using GameOfLife.Api.Features.GameControl;
 using GameOfLife.Api.Tests.Support;
 
 namespace GameOfLife.Api.Tests.Drivers;

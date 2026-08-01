@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using GameOfLife.Api.Contracts;
+using GameOfLife.Core;
+using GameOfLife.Api.Features.GameControl;
 using GameOfLife.Api.Tests.Support;
 
 namespace GameOfLife.Api.Tests;

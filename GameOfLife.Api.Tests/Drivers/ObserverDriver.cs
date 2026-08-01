@@ -1,4 +1,5 @@
-using GameOfLife.Api.Contracts;
+using GameOfLife.Core;
+using GameOfLife.Api.Game;
 using GameOfLife.Api.Tests.Support;
 
 namespace GameOfLife.Api.Tests.Drivers;

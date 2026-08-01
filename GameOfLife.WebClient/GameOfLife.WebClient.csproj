@@ -12,4 +12,8 @@
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.10" PrivateAssets="all"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\GameOfLife.Core\GameOfLife.Core.csproj"/>
+    </ItemGroup>
+
 </Project>

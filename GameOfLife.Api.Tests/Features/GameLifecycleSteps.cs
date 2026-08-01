@@ -1,5 +1,5 @@
 using System.Net;
-using GameOfLife.Api.Contracts;
+using GameOfLife.Core;
 using GameOfLife.Api.Tests.Drivers;
 using Reqnroll;
 

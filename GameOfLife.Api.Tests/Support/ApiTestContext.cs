@@ -1,7 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GameOfLife.Api.Contracts;
+using GameOfLife.Core;
+using GameOfLife.Api.Features.CreateGame;
+using GameOfLife.Api.Game;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -54,7 +56,7 @@ public sealed class ApiTestContext : IAsyncDisposable
     public async Task<ObserverClient> ConnectObserverAsync()
     {
         var connection = new HubConnectionBuilder()
-            .WithUrl(new Uri(_factory.Server.BaseAddress, GameOfLife.Api.Hosting.GameHost.HubUrl.TrimStart('/')), options =>
+            .WithUrl(new Uri(_factory.Server.BaseAddress, GameHost.HubUrl.TrimStart('/')), options =>
             {
                 options.Transports = HttpTransportType.LongPolling;
                 options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
