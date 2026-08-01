@@ -33,9 +33,11 @@ public sealed class GameHost
     // Serializes broadcast state between the interval loop and the immediate step broadcast.
     private readonly SemaphoreSlim _broadcastGate = new(1, 1);
 
-    // Written under _stateGate; read lock-free by observers and the broadcaster, so volatile
-    // (matching the care GameEngine takes with its current-generation reference).
-    private volatile GameSession? _session;
+    // The single game slot. Every access — the write and all reads — goes through _stateGate, so no
+    // volatile is needed. Broadcast/snapshot readers take the reference via ReadSessionAsync (which
+    // releases _stateGate before they touch _broadcastGate), keeping the lock order
+    // _stateGate → _broadcastGate and matching how GameEngine now guards its current generation.
+    private GameSession? _session;
 
     // Broadcast baseline: the session, generation, and live set as of the last push.
     // All broadcast-baseline fields are accessed only under _broadcastGate.
@@ -101,13 +103,14 @@ public sealed class GameHost
         });
 
     public Task<ControlOutcome> StepAsync(string? secret) =>
-        RunControlAsync(secret, requiredState: GameStatus.Paused, async session =>
-        {
-            var generation = session.Step();
-            // Single-step broadcasts immediately (not on the coalesced interval).
-            await BroadcastPendingAsync();
-            return ControlOutcome.Ok(session.Status, generation.Number);
-        });
+        RunControlAsync(secret, requiredState: GameStatus.Paused, session =>
+            {
+                var generation = session.Step();
+                return Task.FromResult(ControlOutcome.Ok(session.Status, generation.Number));
+            },
+            // Single-step broadcasts immediately (not on the coalesced interval), but only after the
+            // state gate is released — see RunControlAsync.
+            afterRelease: BroadcastPendingAsync);
 
     public Task<ControlOutcome> StopAsync(string? secret) =>
         RunControlAsync(secret, requiredState: null, async session =>
@@ -122,19 +125,50 @@ public sealed class GameHost
     /// <summary>
     /// Runs a control verb under the state gate, enforcing the existence → auth → state order:
     /// slot empty → 404, bad/missing secret → 403, wrong state → 409 (no-ops rejected). On success
-    /// the verb's <paramref name="action"/> performs the transition and produces the outcome.
+    /// the verb's <paramref name="action"/> performs the transition and produces the outcome. An
+    /// optional <paramref name="afterRelease"/> runs on the success path only, after the gate is
+    /// released — so a verb can trigger a side effect (e.g. step's immediate broadcast) that needs
+    /// to re-enter the non-reentrant state gate without deadlocking.
     /// </summary>
     private async Task<ControlOutcome> RunControlAsync(
         string? secret,
         GameStatus? requiredState,
-        Func<GameSession, Task<ControlOutcome>> action)
+        Func<GameSession, Task<ControlOutcome>> action,
+        Func<Task>? afterRelease = null)
     {
+        ControlOutcome outcome;
         await _stateGate.WaitAsync();
         try
         {
             if (!TryAuthorize(secret, out var session, out var error)) return error;
             if (requiredState is { } required && session.Status != required) return ControlOutcome.InvalidState;
-            return await action(session);
+            outcome = await action(session);
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
+
+        if (afterRelease is not null)
+            await afterRelease();
+
+        return outcome;
+    }
+
+    /// <summary>
+    /// Reads the current session reference and its <see cref="GameStatus"/> together under
+    /// <see cref="_stateGate"/> — the same gate their writes hold — releasing before it returns.
+    /// This gives lock-free callers a happens-before with the gated writes without ever holding
+    /// <see cref="_stateGate"/> and <see cref="_broadcastGate"/> at once, preserving the
+    /// _stateGate → _broadcastGate lock order. Status is <see cref="GameStatus.NoGame"/> when the
+    /// slot is empty.
+    /// </summary>
+    private async Task<(GameSession? Session, GameStatus Status)> ReadSessionAsync()
+    {
+        await _stateGate.WaitAsync();
+        try
+        {
+            return (_session, _session?.Status ?? GameStatus.NoGame);
         }
         finally
         {
@@ -150,7 +184,7 @@ public sealed class GameHost
     /// </summary>
     internal async Task<SnapshotResponse?> GetSnapshotAsync()
     {
-        var session = _session;
+        var (session, status) = await ReadSessionAsync();
         if (session is null)
             return null;
 
@@ -158,7 +192,7 @@ public sealed class GameHost
         try
         {
             var cells = _lastBroadcastLive.Select(c => c.ToDto()).ToList();
-            return new SnapshotResponse(_lastBroadcastGen, session.Status, session.TickRate, cells);
+            return new SnapshotResponse(_lastBroadcastGen, status, session.TickRate, cells);
         }
         finally
         {
@@ -172,10 +206,11 @@ public sealed class GameHost
     /// </summary>
     public async Task BroadcastPendingAsync()
     {
+        var (session, _) = await ReadSessionAsync();
+
         await _broadcastGate.WaitAsync();
         try
         {
-            var session = _session;
             if (session is null)
             {
                 ResetBaseline();

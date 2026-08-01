@@ -7,11 +7,13 @@ namespace GameOfLife.Core;
 /// </summary>
 /// <remarks>
 /// The engine is the single writer of <see cref="Current"/>: each <see cref="Advance"/> computes
-/// the next generation into a fresh immutable <see cref="Generation"/> and publishes it by atomic
-/// reference swap, so lock-free readers never observe a torn state and never stall the tick.
+/// the next generation into a fresh immutable <see cref="Generation"/> and publishes it under a
+/// lightweight lock, so readers always observe a fully-published generation. The heavy neighbour
+/// computation runs outside the lock, so publishing never contends with it.
 /// </remarks>
 public sealed class GameEngine
 {
+    private readonly Lock _sync = new();
     private Generation _current;
 
     /// <summary>Creates an engine seeded with <paramref name="seed"/> at generation 0.</summary>
@@ -29,7 +31,14 @@ public sealed class GameEngine
     public Rule Rule { get; }
 
     /// <summary>The most recently published generation. Safe to read from any thread.</summary>
-    public Generation Current => Volatile.Read(ref _current);
+    public Generation Current
+    {
+        get
+        {
+            lock (_sync)
+                return _current;
+        }
+    }
 
     /// <summary>
     /// Computes the next generation, publishes it as the new <see cref="Current"/>, and returns it.
@@ -37,9 +46,12 @@ public sealed class GameEngine
     /// </summary>
     public Generation Advance()
     {
+        // Single writer: only Advance mutates _current, so reading the previous generation here
+        // needs no lock. The next generation is published under _sync so readers get a happens-before.
         var previous = _current;
         var next = ComputeNext(previous, Rule);
-        Volatile.Write(ref _current, next);
+        lock (_sync)
+            _current = next;
         return next;
     }
 
