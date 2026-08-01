@@ -1,7 +1,67 @@
-﻿@page "/"
+@page "/"
+@using GameOfLife.Core
+@inject GameStore Store
+@inject NavigationManager Nav
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+@* The adaptive home page (wayfinder #17). One surface gated on whether a game exists — there is no
+   session list: at most one game, or none. It reads the live GameStore.Status (seeded by the shell's
+   RefreshStatusAsync, then kept current by the SignalR ReceiveStatus push) and offers exactly one
+   action for this client: Create when there's no game, Observe when there is.
 
-<h1>Hello, world!</h1>
+   The reactive Create-disable is automatic: when any client creates the game, the backend's
+   ReceiveStatus(Created) push flips GameStore.Status → StatusChanged fires → this page re-renders into
+   the game-exists branch, so Create disappears and Observe takes its place. The authoritative arbiter is
+   still the 409 on POST /game — a client that clicks Create before the push arrives falls through to the
+   create page, which surfaces the 409 (wayfinder #18). *@
 
-Welcome to your new app.
+<PageTitle>Game of Life</PageTitle>
+
+<h1>Game of Life</h1>
+
+@if (Phase is ShellPhase.Ready or ShellPhase.Reconnecting)
+{
+    @if (Store.Status is GameStatus.NoGame)
+    {
+        <p>No game is running.</p>
+        <button type="button" class="primary" @onclick="Create">Create game</button>
+    }
+    else
+    {
+        <p>A game is running.</p>
+        <dl class="status">
+            <dt>Status</dt>
+            <dd>@Store.Status</dd>
+            <dt>Generation</dt>
+            <dd>@Store.Generation</dd>
+        </dl>
+        <button type="button" class="primary" @onclick="Observe">Observe</button>
+    }
+}
+@* Connecting / Disconnected: the shell banner carries the message and the Retry — nothing to gate on yet. *@
+
+@code {
+    // The shell's connection phase, cascaded from MainLayout. The gate only renders once the status is
+    // known (Ready), so home never flashes an enabled Create button that a resolved status then disables.
+    [CascadingParameter] public ShellPhase Phase { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Store.StatusChanged += OnStatusChanged;
+        Store.GenerationChanged += OnGenerationChanged;
+    }
+
+    private void OnStatusChanged(GameStatus _) => InvokeAsync(StateHasChanged);
+
+    private void OnGenerationChanged(long _) => InvokeAsync(StateHasChanged);
+
+    private void Create() => Nav.NavigateTo("/admin");
+
+    private void Observe() => Nav.NavigateTo("/observe");
+
+    public void Dispose()
+    {
+        Store.StatusChanged -= OnStatusChanged;
+        Store.GenerationChanged -= OnGenerationChanged;
+    }
+}

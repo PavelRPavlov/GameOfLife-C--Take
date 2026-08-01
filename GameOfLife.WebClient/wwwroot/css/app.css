@@ -87,3 +87,60 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* Adaptive home + app-shell (wayfinder #17) — functional styling only, no design system. */
+.app-shell {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+.conn-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.9rem;
+    margin-bottom: 1rem;
+    border-radius: 0.35rem;
+    font-size: 0.9rem;
+}
+
+.conn-banner.conn-connecting,
+.conn-banner.conn-reconnecting {
+    background: #fff3cd;
+    color: #664d03;
+}
+
+.conn-banner.conn-disconnected {
+    background: #f8d7da;
+    color: #842029;
+}
+
+.status {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0.75rem 0 1.25rem;
+}
+
+.status dt {
+    font-weight: 600;
+}
+
+.status dd {
+    margin: 0;
+}
+
+button.primary {
+    padding: 0.5rem 1.1rem;
+    border: none;
+    border-radius: 0.35rem;
+    background: #1b6ec2;
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+button.primary:disabled {
+    background: #9bbede;
+    cursor: not-allowed;
+}

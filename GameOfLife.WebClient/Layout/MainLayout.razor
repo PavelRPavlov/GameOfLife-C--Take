@@ -1,3 +1,50 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject ShellConnection Shell
+@implements IDisposable
 
-@Body
+@* The app shell. It persists across client-side route swaps, so it owns the single app-lifetime
+   connection: on first render it eagerly connects and seeds status (ShellConnection), then drives the
+   Connecting… → Ready → Reconnecting… → Disconnected/Retry state machine. There is no shared game-status
+   strip — each page renders its own status from GameStore events; the shell only surfaces the *connection*
+   phase (a banner) and cascades it so pages can gate their content. *@
+
+<div class="app-shell">
+    @if (Shell.Phase is not ShellPhase.Ready)
+    {
+        <div class="conn-banner conn-@Shell.Phase.ToString().ToLowerInvariant()" role="status" aria-live="polite">
+            @if (Shell.Phase is ShellPhase.Connecting)
+            {
+                <span>Connecting…</span>
+            }
+            else if (Shell.Phase is ShellPhase.Reconnecting)
+            {
+                <span>Reconnecting…</span>
+            }
+            else
+            {
+                <span>Can't reach the server.</span>
+                <button type="button" @onclick="RetryAsync">Retry</button>
+            }
+        </div>
+    }
+
+    <CascadingValue Value="Shell.Phase">
+        @Body
+    </CascadingValue>
+</div>
+
+@code {
+    protected override void OnInitialized() => Shell.Changed += OnShellChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await Shell.InitializeAsync();
+    }
+
+    private void OnShellChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task RetryAsync() => await Shell.RetryAsync();
+
+    public void Dispose() => Shell.Changed -= OnShellChanged;
+}
