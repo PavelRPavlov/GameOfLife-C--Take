@@ -1,0 +1,52 @@
+using GameOfLife.Client;
+
+namespace GameOfLife.Client.Tests;
+
+public sealed class ResultTests
+{
+    [Fact]
+    public void Ok_carries_the_value_and_matches_the_success_arm()
+    {
+        var result = Result<int, GameError>.Ok(42);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(42, result.Value);
+        Assert.Equal("ok:42", result.Match(v => $"ok:{v}", _ => "err"));
+    }
+
+    [Fact]
+    public void Err_carries_the_error_and_matches_the_failure_arm()
+    {
+        var result = Result<int, GameError>.Err(GameError.NoGame.Instance);
+
+        Assert.True(result.IsError);
+        Assert.IsType<GameError.NoGame>(result.Error);
+        Assert.Equal("err", result.Match(v => $"ok:{v}", _ => "err"));
+    }
+
+    [Fact]
+    public void Value_throws_on_a_failure_and_Error_throws_on_a_success()
+    {
+        Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Err(GameError.NoGame.Instance).Value);
+        Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Ok(1).Error);
+    }
+
+    [Fact]
+    public void Map_transforms_success_and_passes_failure_through()
+    {
+        Assert.Equal(10, Result<int, GameError>.Ok(5).Map(v => v * 2).Value);
+        Assert.IsType<GameError.Forbidden>(
+            Result<int, GameError>.Err(GameError.Forbidden.Instance).Map(v => v * 2).Error);
+    }
+
+    [Fact]
+    public void Bind_chains_success_and_short_circuits_failure()
+    {
+        var chained = Result<int, GameError>.Ok(5).Bind(v => Result<string, GameError>.Ok($"n{v}"));
+        Assert.Equal("n5", chained.Value);
+
+        var shorted = Result<int, GameError>.Err(GameError.InvalidState.Instance)
+            .Bind(v => Result<string, GameError>.Ok($"n{v}"));
+        Assert.IsType<GameError.InvalidState>(shorted.Error);
+    }
+}
