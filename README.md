@@ -93,14 +93,12 @@ Anyone can reproduce the interpreted-vs-AOT result locally.
   dotnet workload install wasm-tools
   ```
 
-- **A static file server** for the published client. Node's `serve` is the simplest and
-  handles the `.wasm` MIME type plus SPA fallback (`-s`):
+- **A static file server** for the published client. Stay in the .NET toolchain with
+  `dotnet-serve`, a global tool that sets the `.wasm` MIME type correctly:
 
   ```bash
-  npm install --global serve
+  dotnet tool install --global dotnet-serve
   ```
-
-  (Alternatively `dotnet tool install --global dotnet-serve`.)
 
 ### 2. Build the client with AOT
 
@@ -124,10 +122,12 @@ dotnet run --project GameOfLife.Api
 ```
 
 ```bash
-serve -s ./publish-aot/wwwroot -l 5292
+dotnet serve --directory ./publish-aot/wwwroot --port 5292
 ```
 
-Then open **`http://localhost:5292`**.
+Then open **`http://localhost:5292`** and navigate into the game from the home page.
+(`dotnet serve` has no SPA fallback, so start at the root `/` and use in-app navigation
+rather than hard-refreshing a deep route like `/admin`.)
 
 > **CORS note:** the API only allows the origins in `Cors:AllowedOrigins`
 > (`GameOfLife.Api/appsettings.json`, plus the Development additions). Serving the client on
