@@ -89,7 +89,7 @@ code {
 }
 /* Adaptive home + app-shell (wayfinder #17) — functional styling only, no design system. */
 .app-shell {
-    max-width: 48rem;
+    max-width: 64rem;
     margin: 0 auto;
     padding: 1.5rem;
 }
@@ -207,7 +207,28 @@ button.primary:disabled {
 
 .admin-create-btn {
     width: 100%;
-    margin-top: 0.25rem;
+}
+
+/* Collapsed-by-default game tunables. The defaults (B3/S23, 10 gen/sec, origin 0,0) are the common
+   case, so the create flow is draw + click; the knobs are one disclosure click away when wanted. */
+.admin-advanced {
+    margin-top: 0.9rem;
+    border: 1px solid #ccc;
+    border-radius: 0.35rem;
+    padding: 0 0.7rem;
+}
+
+.admin-advanced > summary {
+    cursor: pointer;
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+    list-style-position: inside;
+}
+
+.admin-advanced[open] {
+    padding-bottom: 0.7rem;
 }
 
 .admin-msg {
@@ -228,6 +249,26 @@ button.primary:disabled {
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 1rem;
+}
+
+/* The live torus viewport (wayfinder #15), embedded by /admin and /observe. The <canvas> carries no
+   intrinsic CSS size, so without this it collapses to the 300×150 canvas default; here it fills the
+   shell width and takes a tall, readable slice of the viewport. gameViewport.js re-measures via its
+   ResizeObserver and the fit-once lands on this real size. Chrome matches the dark in-canvas theme. */
+.game-viewport {
+    display: block;
+    width: 100%;
+    height: min(70vh, 42rem);
+    margin: 0 0 1rem;
+    border: 1px solid #182135;
+    border-radius: 0.5rem;
+    background: #0b0f1a;
+    touch-action: none;
+    cursor: grab;
+}
+
+.game-viewport:active {
+    cursor: grabbing;
 }
 
 button.link {
@@ -276,39 +317,56 @@ button.link {
     background: #ddd;
 }
 
+.seed-hint {
+    font-size: 0.8rem;
+    color: #555;
+}
+
 .seed-count {
     margin-left: auto;
     font-size: 0.8rem;
     color: #555;
 }
 
+/* Canvas + its preset/RLE mechanisms sit side by side so the create form's height stays ~= the canvas
+   height (no vertical scroll on /admin); it wraps to a column only when the shell gets narrow. */
+.seed-body {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
 .seed-canvas {
-    border: 1px solid #ccc;
+    /* Match the live viewport's dark chrome (#15) — same border tint, rounded, dark backdrop — so the
+       authoring grid and the running grid read as one surface. */
+    border: 1px solid #182135;
+    border-radius: 0.5rem;
+    background: #0b0f1a;
     touch-action: none;
     cursor: crosshair;
-    image-rendering: pixelated;
     align-self: flex-start;
+    /* A large, FIXED square (no pan/zoom on the authoring grid). Sized off the viewport height so the
+       whole 100×100 field is visible at once and takes a real chunk of the screen; capped at 100% of
+       the row so it never overflows its column. seedCanvas.js reads this box and derives the per-cell
+       size, so bigger box == bigger, easier-to-click cells. */
+    width: min(80vh, 100%);
+    height: auto;
+    aspect-ratio: 1 / 1;
 }
 
 .seed-mechanisms {
     display: flex;
+    flex-direction: column;
     gap: 1.25rem;
-    flex-wrap: wrap;
+    min-width: 16rem;
 }
 
-.seed-preset label,
 .seed-import label {
     display: block;
     font-size: 0.8rem;
     color: #555;
     margin-bottom: 0.3rem;
-}
-
-.seed-preset {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
 }
 
 .seed-rle {

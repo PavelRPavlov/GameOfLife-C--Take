@@ -33,15 +33,15 @@ public sealed record CreateGameRequest : IValidatableObject
     [Required]
     public string? Rule { get; init; }
 
-    /// <summary>Generations per second, inclusive range 0.1 .. 60.</summary>
+    /// <summary>Generations per second, inclusive range 0.1 .. 200.</summary>
     [Required]
     public double? TickRate { get; init; }
 
     /// <summary>Minimum accepted <see cref="TickRate"/> (gen/sec).</summary>
     public const double MinTickRate = 0.1;
 
-    /// <summary>Maximum accepted <see cref="TickRate"/> (gen/sec).</summary>
-    public const double MaxTickRate = 60.0;
+    /// <summary>Maximum accepted <see cref="TickRate"/> (gen/sec). Raised to 200 for high-speed testing.</summary>
+    public const double MaxTickRate = 200.0;
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {

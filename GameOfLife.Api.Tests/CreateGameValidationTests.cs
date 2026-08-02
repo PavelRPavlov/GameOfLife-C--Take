@@ -131,7 +131,7 @@ public class CreateGameValidationTests
     [Theory]
     [InlineData(0.0)]
     [InlineData(0.05)]
-    [InlineData(60.1)]
+    [InlineData(200.1)]
     [InlineData(1000)]
     public async Task Out_of_range_tick_rate_is_rejected_400(double tickRate)
     {
@@ -140,6 +140,18 @@ public class CreateGameValidationTests
         var response = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate(tickRate: tickRate)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(0.1)]   // MinTickRate boundary
+    [InlineData(200.0)] // MaxTickRate boundary — raised from 60 for high-speed testing
+    public async Task Boundary_tick_rate_is_accepted_201(double tickRate)
+    {
+        await using var ctx = new ApiTestContext();
+
+        var response = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate(tickRate: tickRate)));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]

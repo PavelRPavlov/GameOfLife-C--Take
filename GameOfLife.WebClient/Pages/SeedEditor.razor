@@ -9,31 +9,24 @@
 
 <div class="seed-editor">
     <div class="seed-tools">
-        <button type="button" class="seed-tool @(_tool == "paint" ? "on" : "")" @onclick='() => SetTool("paint")'>Paint</button>
-        <button type="button" class="seed-tool @(_tool == "erase" ? "on" : "")" @onclick='() => SetTool("erase")'>Erase</button>
+        <span class="seed-hint"><strong>Left-click</strong> to draw · <strong>Right-click</strong> to erase · drag to sweep</span>
         <span class="seed-sep"></span>
         <button type="button" class="seed-tool" @onclick="Clear">Clear</button>
         <button type="button" class="seed-tool" @onclick="Invert">Invert</button>
         <button type="button" class="seed-tool" @onclick="Randomize">Random</button>
+        <span class="seed-sep"></span>
+        @* One-click figure placement, sitting beside the generators: each stamps its shape centred. *@
+        @foreach (var p in SeedPatterns.All)
+        {
+            <button type="button" class="seed-tool" title="Place @p.Name (@p.Category) at the centre" @onclick="() => StampPreset(p)">@p.Name</button>
+        }
         <span class="seed-count">@_board.AliveCount live</span>
     </div>
 
-    <canvas @ref="_canvas" class="seed-canvas" width="@(SeedBoard.Size * Px)" height="@(SeedBoard.Size * Px)"></canvas>
+    <div class="seed-body">
+        <canvas @ref="_canvas" class="seed-canvas"></canvas>
 
-    <div class="seed-mechanisms">
-        <div class="seed-preset">
-            <label>Preset&nbsp;
-                <select @bind="_presetIndex">
-                    @for (var i = 0; i < SeedPatterns.All.Count; i++)
-                    {
-                        var p = SeedPatterns.All[i];
-                        <option value="@i">@p.Name (@p.Category)</option>
-                    }
-                </select>
-            </label>
-            <button type="button" class="seed-tool" @onclick="StampPreset">Place at center</button>
-        </div>
-
+        <div class="seed-mechanisms">
         <div class="seed-import">
             <label for="rle">Import RLE / plaintext</label>
             <textarea id="rle" class="seed-rle" @bind="_rle" placeholder="bo$2bo$3o!   or   .O./..O/OOO"></textarea>
@@ -45,12 +38,14 @@
                 }
             </div>
         </div>
+        </div>
     </div>
 </div>
 
 @code {
-    private const int Px = 4; // 100 cells × 4px = a 400px authoring canvas
-
+    // The on-screen cell size is no longer a fixed C# constant: the canvas is sized by CSS (a
+    // viewport-relative square) and seedCanvas.js derives px = boxWidth / 100 so the whole grid always
+    // fits with cells as large as the space allows.
     private readonly SeedBoard _board = new();
     private ElementReference _canvas;
     private IJSObjectReference? _module;
@@ -58,9 +53,7 @@
     private int _id;
     private bool _ready;
 
-    private string _tool = "paint";
     private string _rle = "";
-    private int _presetIndex;
     private bool _clamped;
 
     /// <summary>Raised after any board change so the parent can re-evaluate its Create affordance.</summary>
@@ -80,7 +73,7 @@
         // fingerprinted alias the WebAssembly DevServer doesn't serve. Mirrors GameViewport (#15).
         _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/seedCanvas.js");
         _self = DotNetObjectReference.Create(this);
-        _id = await _module.InvokeAsync<int>("create", _canvas, _self, SeedBoard.Size, Px);
+        _id = await _module.InvokeAsync<int>("create", _canvas, _self, SeedBoard.Size);
         _ready = true;
     }
 
@@ -97,15 +90,11 @@
         await NotifyChangedAsync();
     }
 
-    private async Task SetTool(string tool)
+    // One click, one placement: each preset button stamps its figure centred on the torus immediately
+    // (no select-then-place two-step). Mirrors the button library the create form (#18) now shows.
+    private Task StampPreset(SeedPattern pattern)
     {
-        _tool = tool;
-        if (_ready) await _module!.InvokeVoidAsync("setTool", _id, tool);
-    }
-
-    private Task StampPreset()
-    {
-        _board.StampCentered(SeedPatterns.All[_presetIndex]);
+        _board.StampCentered(pattern);
         return PushAsync();
     }
 
