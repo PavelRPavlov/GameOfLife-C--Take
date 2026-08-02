@@ -54,7 +54,7 @@ public class OptionsValidationTests
     public void Given_a_wrap_capable_coordinate_type_When_game_options_are_validated_Then_validation_succeeds(string coordinateType)
     {
         var result = GameValidator.Validate(null,
-            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, CoordinateType = coordinateType });
+            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, UniverseAxisSize = coordinateType });
 
         Assert.True(result.Succeeded);
     }
@@ -72,7 +72,7 @@ public class OptionsValidationTests
     public void Given_a_non_wrap_capable_coordinate_type_When_game_options_are_validated_Then_validation_fails(string coordinateType)
     {
         var result = GameValidator.Validate(null,
-            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, CoordinateType = coordinateType });
+            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, UniverseAxisSize = coordinateType });
 
         Assert.True(result.Failed);
     }

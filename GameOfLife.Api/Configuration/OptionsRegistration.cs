@@ -44,9 +44,9 @@ internal sealed class GameOptionsValidator : IValidateOptions<GameOptions>
         // The torus wraps with a single mask only because its size is a power of two — i.e. the range
         // of an unsigned integer type. Reject anything else (signed, floating, or unknown) so the app
         // refuses to start rather than fall back to a costlier, non-free wrapping scheme.
-        if (!Universe.TryParseCoordinateType(options.CoordinateType, out _))
+        if (!Universe.TryParseCoordinateType(options.UniverseAxisSize, out _))
             failures.Add(
-                $"{GameOptions.SectionName}:{nameof(GameOptions.CoordinateType)} '{options.CoordinateType}' is not a " +
+                $"{GameOptions.SectionName}:{nameof(GameOptions.UniverseAxisSize)} '{options.UniverseAxisSize}' is not a " +
                 "wrap-capable unsigned integer type. Use one of: " +
                 $"{string.Join(", ", Universe.SupportedCoordinateTypeNames)}.");
 

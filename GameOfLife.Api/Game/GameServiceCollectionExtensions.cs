@@ -20,7 +20,7 @@ public static class GameServiceCollectionExtensions
         // constrains T to a reference type) cannot accept. The factory boxes it; DI unboxes on inject.
         services.AddSingleton(typeof(Universe), sp =>
             Universe.TryParseCoordinateType(
-                sp.GetRequiredService<IOptions<GameOptions>>().Value.CoordinateType, out var universe)
+                sp.GetRequiredService<IOptions<GameOptions>>().Value.UniverseAxisSize, out var universe)
                 ? universe
                 : Universe.Full);
 

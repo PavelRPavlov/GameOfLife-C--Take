@@ -27,5 +27,5 @@ public sealed class GameOptions
     /// (<see cref="GameOfLife.Core.Universe.TryParseCoordinateType"/>): only unsigned integer types
     /// wrap with a single mask like <see cref="ulong"/> does, so anything else fails the host at boot.
     /// </summary>
-    public string CoordinateType { get; init; } = "UInt64";
+    public string UniverseAxisSize { get; init; } = "UInt64";
 }
