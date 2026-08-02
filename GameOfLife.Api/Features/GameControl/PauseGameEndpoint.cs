@@ -1,5 +1,3 @@
-using GameOfLife.Api.Game;
-
 namespace GameOfLife.Api.Features.GameControl;
 
 /// <summary><c>POST /pause</c> — Running → Paused. X-Admin-Secret gated.</summary>

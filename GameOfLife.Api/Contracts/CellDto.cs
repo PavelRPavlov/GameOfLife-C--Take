@@ -1,6 +1,3 @@
-using System.Globalization;
-using GameOfLife.Core;
-
 namespace GameOfLife.Api.Contracts;
 
 /// <summary>

@@ -1,5 +1,3 @@
-using GameOfLife.Core;
-
 namespace GameOfLife.Api.Game;
 
 /// <summary>How a control verb (<c>start/stop/pause/resume/step</c>) resolved.</summary>

@@ -1,5 +1,3 @@
-using GameOfLife.Api.Contracts;
-
 namespace GameOfLife.Api.Game;
 
 /// <summary>

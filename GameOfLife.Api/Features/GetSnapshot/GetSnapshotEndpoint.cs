@@ -1,7 +1,3 @@
-using GameOfLife.Api.Errors;
-using GameOfLife.Api.Game;
-using GameOfLife.Shared;
-
 namespace GameOfLife.Api.Features.GetSnapshot;
 
 /// <summary>

@@ -1,9 +1,3 @@
-using System.Globalization;
-using System.Net.Http.Json;
-using System.Text.Json;
-using GameOfLife.Core;
-using GameOfLife.Shared;
-
 namespace GameOfLife.WebClient.Communication;
 
 /// <summary>

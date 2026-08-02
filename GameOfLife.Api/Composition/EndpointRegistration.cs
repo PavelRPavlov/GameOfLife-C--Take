@@ -1,8 +1,3 @@
-using GameOfLife.Api.Features.CreateGame;
-using GameOfLife.Api.Features.GameControl;
-using GameOfLife.Api.Features.GetSnapshot;
-using GameOfLife.Api.Game;
-
 namespace GameOfLife.Api.Composition;
 
 /// <summary>

@@ -1,5 +1,3 @@
-using GameOfLife.Core;
-
 namespace GameOfLife.Api.Features.CreateGame;
 
 /// <summary>201 response for <c>POST /game</c>. <see cref="AdminSecret"/> is returned here once only.</summary>

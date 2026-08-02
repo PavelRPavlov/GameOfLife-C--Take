@@ -1,0 +1,21 @@
+﻿// Global using directives
+global using GameOfLife.Core;
+global using GameOfLife.Shared;
+global using GameOfLife.WebClient;
+global using GameOfLife.WebClient.Communication;
+global using GameOfLife.WebClient.Communication.Seeding;
+global using GameOfLife.WebClient.Layout;
+global using GameOfLife.WebClient.Rendering;
+global using Microsoft.AspNetCore.Components.Forms;
+global using Microsoft.AspNetCore.Components.Routing;
+global using Microsoft.AspNetCore.Components.Web;
+global using Microsoft.AspNetCore.Components.Web.Virtualization;
+global using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+global using Microsoft.AspNetCore.Components.WebAssembly.Http;
+global using Microsoft.AspNetCore.SignalR.Client;
+global using Microsoft.JSInterop;
+global using System.Globalization;
+global using System.Net.Http;
+global using System.Net.Http.Json;
+global using System.Text.Json;
+global using System.Text.Json.Serialization;

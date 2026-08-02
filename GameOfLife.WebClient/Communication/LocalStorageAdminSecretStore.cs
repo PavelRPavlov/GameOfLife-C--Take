@@ -1,5 +1,3 @@
-using Microsoft.JSInterop;
-
 namespace GameOfLife.WebClient.Communication;
 
 /// <summary>

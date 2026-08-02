@@ -1,5 +1,3 @@
-using GameOfLife.Shared;
-
 namespace GameOfLife.WebClient.Communication;
 
 /// <summary>

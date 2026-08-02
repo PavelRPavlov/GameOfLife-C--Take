@@ -1,8 +1,3 @@
-using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using GameOfLife.Core;
-
 namespace GameOfLife.WebClient.Communication;
 
 // The private wire contract for the backend. These DTOs never leave the transport implementations:

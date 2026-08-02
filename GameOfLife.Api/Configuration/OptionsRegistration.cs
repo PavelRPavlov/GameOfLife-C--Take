@@ -1,6 +1,3 @@
-using GameOfLife.Core;
-using Microsoft.Extensions.Options;
-
 namespace GameOfLife.Api.Configuration;
 
 /// <summary>

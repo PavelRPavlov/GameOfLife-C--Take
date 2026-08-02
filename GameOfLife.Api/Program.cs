@@ -1,7 +1,3 @@
-using GameOfLife.Api.Composition;
-using GameOfLife.Api.Configuration;
-using GameOfLife.Api.Game;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Service configuration: backend settings bind (and validate at startup) from appsettings; the game

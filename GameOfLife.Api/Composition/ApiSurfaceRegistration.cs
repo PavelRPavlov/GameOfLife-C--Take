@@ -1,6 +1,3 @@
-using System.Text.Json.Serialization;
-using GameOfLife.Api.Configuration;
-
 namespace GameOfLife.Api.Composition;
 
 /// <summary>
