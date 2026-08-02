@@ -146,21 +146,23 @@ button.primary:disabled {
 }
 
 /* Admin create + control (wayfinder #18) and seed editor (#16) — functional styling only. */
-.admin-create {
-    display: flex;
-    gap: 1.25rem;
-    align-items: flex-start;
-    flex-wrap: wrap;
+
+/* The create surface breaks out of the app-shell's centred max-width to span the full viewport, so the
+   grid gets every pixel not taken by the fixed control column. The paired negative margins pull both
+   edges to the viewport regardless of the shell's own padding. */
+.admin-create-view {
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
 }
 
-.admin-settings {
-    width: 15rem;
-    flex-shrink: 0;
-}
-
-.admin-settings h2 {
-    font-size: 1rem;
+.admin-back {
     margin: 0 0 0.5rem;
+}
+
+.admin-create {
+    display: block;
 }
 
 .admin-field {
@@ -288,13 +290,6 @@ button.link {
     gap: 0.6rem;
 }
 
-.seed-tools {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-}
-
 .seed-tool {
     padding: 0.25rem 0.6rem;
     border: 1px solid #bbb;
@@ -305,16 +300,101 @@ button.link {
     cursor: pointer;
 }
 
+.seed-tool:disabled {
+    color: #aaa;
+    background: #f0f0f0;
+    cursor: not-allowed;
+}
+
 .seed-tool.on {
     background: #1b6ec2;
     color: #fff;
     border-color: #1b6ec2;
 }
 
-.seed-sep {
-    width: 1px;
-    height: 1.2rem;
-    background: #ddd;
+/* Exactly two columns that never wrap: the square grid + the fixed control column, sitting side by side
+   at the left edge (a 100×100 board is square, so on a wide viewport it can't fill the width without
+   overflowing height — the leftover space pools on the right rather than gapping between the two).
+   On a phone-narrow shell it stacks: grid over controls, since side-by-side no longer fits. */
+.seed-body {
+    --seed-panel-w: 14rem;
+    --seed-gap: 1.25rem;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: var(--seed-gap);
+    align-items: flex-start;
+}
+
+@media (max-width: 40rem) {
+    .seed-body {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+/* The side control column. Its width is fixed to the width of the three Board buttons (Clear/Invert/
+   Random), which fill it exactly; every other group — the create action, presets, saved seed, import —
+   sizes to this same column. --seed-panel-w is the single knob for that width. */
+.seed-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    flex: 0 0 var(--seed-panel-w);
+    width: var(--seed-panel-w);
+}
+
+@media (max-width: 40rem) {
+    .seed-controls {
+        flex-basis: auto;
+        width: auto;
+    }
+}
+
+/* The page chrome (back link + title) pulled into the top of the control column, so the grid beside it
+   starts at the top of the row. The title is scaled down to sit comfortably in the fixed column width. */
+.seed-header .admin-back {
+    margin: 0 0 0.25rem;
+}
+
+.seed-header .admin-title {
+    margin: 0;
+    font-size: 1.3rem;
+    line-height: 1.2;
+}
+
+.seed-controls-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.seed-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.seed-group-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+}
+
+.seed-group-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+/* Rows whose buttons should span the panel edge-to-edge (Board's three, Saved seed's two), so the column
+   width reads as "exactly this button row" — the reference the whole panel is sized to. */
+.seed-group-body--fill .seed-tool {
+    flex: 1 1 auto;
 }
 
 .seed-hint {
@@ -323,18 +403,14 @@ button.link {
 }
 
 .seed-count {
-    margin-left: auto;
     font-size: 0.8rem;
     color: #555;
+    white-space: nowrap;
 }
 
-/* Canvas + its preset/RLE mechanisms sit side by side so the create form's height stays ~= the canvas
-   height (no vertical scroll on /admin); it wraps to a column only when the shell gets narrow. */
-.seed-body {
-    display: flex;
-    gap: 1.25rem;
-    align-items: flex-start;
-    flex-wrap: wrap;
+.seed-note {
+    font-size: 0.75rem;
+    color: #0f5132;
 }
 
 .seed-canvas {
@@ -346,32 +422,26 @@ button.link {
     touch-action: none;
     cursor: crosshair;
     align-self: flex-start;
-    /* A large, FIXED square (no pan/zoom on the authoring grid). Sized off the viewport height so the
-       whole 100×100 field is visible at once and takes a real chunk of the screen; capped at 100% of
-       the row so it never overflows its column. seedCanvas.js reads this box and derives the per-cell
-       size, so bigger box == bigger, easier-to-click cells. */
-    width: min(80vh, 100%);
+    /* The biggest square that fits: as wide as the row leaves after the fixed control column, but height-
+       capped so the whole page is exactly one viewport tall with equal gaps top and bottom. Nothing sits
+       above the grid, so the app-shell's 1.5rem top padding is the top gap; matching it below means the
+       grid's rendered box fills 100vh − 2·1.5rem. The −2px accounts for the 1px border (box-sizing is
+       content-box here). The grid is a fixed 100×100, so a bigger box just means bigger, easier-to-click
+       cells (seedCanvas.js derives the per-cell size from this box via its ResizeObserver). */
+    flex: 0 0 auto;
+    width: min(100% - var(--seed-panel-w) - var(--seed-gap), calc(100vh - 3rem - 2px));
     height: auto;
     aspect-ratio: 1 / 1;
 }
 
-.seed-mechanisms {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    min-width: 16rem;
-}
-
-.seed-import label {
-    display: block;
-    font-size: 0.8rem;
-    color: #555;
-    margin-bottom: 0.3rem;
+@media (max-width: 40rem) {
+    .seed-canvas {
+        width: min(100%, calc(100vh - 3rem - 2px));
+    }
 }
 
 .seed-rle {
-    width: 16rem;
-    max-width: 100%;
+    width: 100%;
     height: 3.5rem;
     font-family: monospace;
     font-size: 0.8rem;

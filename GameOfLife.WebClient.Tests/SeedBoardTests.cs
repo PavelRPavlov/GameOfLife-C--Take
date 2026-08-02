@@ -144,4 +144,70 @@ public class SeedBoardTests
         Assert.False(board.Get(0, 0));
         Assert.True(board.Get(5, 5));
     }
+
+    [Fact]
+    public void LoadPacked_IsTheExactInverseOfToPackedBytes()
+    {
+        var original = new SeedBoard();
+        (int X, int Y)[] live = [(0, 0), (5, 3), (99, 99), (0, 99), (99, 0), (42, 17)];
+        foreach (var (x, y) in live) original.Set(x, y, true);
+
+        var restored = new SeedBoard();
+        restored.LoadPacked(original.ToPackedBytes());
+
+        Assert.Equal(original.AliveCount, restored.AliveCount);
+        Assert.Equal(live.Length, restored.AliveCount);
+        foreach (var (x, y) in live) Assert.True(restored.Get(x, y));
+    }
+
+    [Fact]
+    public void LoadPacked_ReplacesExistingCells()
+    {
+        var board = new SeedBoard();
+        board.Set(1, 1, true);
+
+        board.LoadPacked(new byte[SeedBoard.ByteLength]); // all-dead packing
+
+        Assert.Equal(0, board.AliveCount);
+        Assert.False(board.Get(1, 1));
+    }
+
+    [Theory]
+    [InlineData(1249)]
+    [InlineData(1251)]
+    public void LoadPacked_WrongLength_Throws(int length)
+        => Assert.Throws<ArgumentException>(() => new SeedBoard().LoadPacked(new byte[length]));
+
+    [Fact]
+    public void TryLoadBase64_RoundTripsWithToBase64()
+    {
+        var original = new SeedBoard();
+        original.Set(3, 4, true);
+        original.Set(50, 50, true);
+
+        var restored = new SeedBoard();
+        var ok = restored.TryLoadBase64(original.ToBase64());
+
+        Assert.True(ok);
+        Assert.Equal(2, restored.AliveCount);
+        Assert.True(restored.Get(3, 4));
+        Assert.True(restored.Get(50, 50));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not base64 !!!")]      // FormatException path
+    [InlineData("YWJj")]                 // valid base64, but only 3 bytes — wrong length
+    public void TryLoadBase64_RejectsBadInput_AndLeavesTheBoardUntouched(string? input)
+    {
+        var board = new SeedBoard();
+        board.Set(7, 7, true);
+
+        var ok = board.TryLoadBase64(input);
+
+        Assert.False(ok);
+        Assert.Equal(1, board.AliveCount);
+        Assert.True(board.Get(7, 7));
+    }
 }

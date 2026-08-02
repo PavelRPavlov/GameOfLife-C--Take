@@ -3,42 +3,89 @@
 @implements IAsyncDisposable
 
 @* The seed-authoring surface (wayfinder #16, built into the create page #18 — its sole consumer).
-   Canvas-forward layout A: the fixed 100×100 painting canvas dominates, with a tool row above and
-   preset/RLE mechanisms beside it. The board (SeedBoard) is authoritative C#; seedCanvas.js only
-   renders it and reports strokes. The parent (Admin) reads GetSeedBase64() on create. *@
-
+   Two-column layout: a fixed-width control column on the left holds everything — the host page's chrome
+   (back link + title, via <Header>), the create action + advanced settings (via <Settings>), and the
+   Board / Presets / Saved seed / Import tools — while the painting canvas sits to its right and rises to
+   the top-left of the row (nothing above it), growing to fill the remaining space. seedCanvas.js derives
+   the cell size from that box, so the fixed 100×100 grid just gets bigger, easier-to-click cells. The
+   board (SeedBoard) is authoritative C#; seedCanvas.js only renders it and reports strokes. The parent
+   (Admin) reads GetSeedBase64() on create. *@
 <div class="seed-editor">
-    <div class="seed-tools">
-        <span class="seed-hint"><strong>Left-click</strong> to draw · <strong>Right-click</strong> to erase · drag to sweep</span>
-        <span class="seed-sep"></span>
-        <button type="button" class="seed-tool" @onclick="Clear">Clear</button>
-        <button type="button" class="seed-tool" @onclick="Invert">Invert</button>
-        <button type="button" class="seed-tool" @onclick="Randomize">Random</button>
-        <span class="seed-sep"></span>
-        @* One-click figure placement, sitting beside the generators: each stamps its shape centred. *@
-        @foreach (var p in SeedPatterns.All)
-        {
-            <button type="button" class="seed-tool" title="Place @p.Name (@p.Category) at the centre" @onclick="() => StampPreset(p)">@p.Name</button>
-        }
-        <span class="seed-count">@_board.AliveCount live</span>
-    </div>
-
     <div class="seed-body">
-        <canvas @ref="_canvas" class="seed-canvas"></canvas>
+        <div class="seed-controls">
+            @* Host-supplied page chrome (back link + title) sits atop the column so the grid beside it can
+               rise to the top of the row — nothing above it eats vertical space. *@
+            @if (Header is not null)
+            {
+                <div class="seed-header">@Header</div>
+            }
 
-        <div class="seed-mechanisms">
-        <div class="seed-import">
-            <label for="rle">Import RLE / plaintext</label>
-            <textarea id="rle" class="seed-rle" @bind="_rle" placeholder="bo$2bo$3o!   or   .O./..O/OOO"></textarea>
-            <div class="seed-import-row">
-                <button type="button" class="seed-tool" @onclick="ParseImport">Load to grid</button>
-                @if (_clamped)
+            <div class="seed-controls-head">
+                <span class="seed-hint"><strong>Left-click</strong> draw · <strong>Right-click</strong> erase · drag to sweep</span>
+                <span class="seed-count">@_board.AliveCount live</span>
+            </div>
+
+            @* The create action and its advanced knobs, supplied by the host page so this component stays a
+               pure seed editor while still presenting them inside the one control column. *@
+            @if (Settings is not null)
+            {
+                <div class="seed-group">@Settings</div>
+            }
+
+            <div class="seed-group">
+                <span class="seed-group-title">Board</span>
+                <div class="seed-group-body seed-group-body--fill">
+                    <button type="button" class="seed-tool" @onclick="Clear">Clear</button>
+                    <button type="button" class="seed-tool" @onclick="Invert">Invert</button>
+                    <button type="button" class="seed-tool" @onclick="Randomize">Random</button>
+                </div>
+            </div>
+
+            @* One-click figure placement: each stamps its shape centred on the torus. *@
+            <div class="seed-group">
+                <span class="seed-group-title">Presets</span>
+                <div class="seed-group-body">
+                    @foreach (var p in SeedPatterns.All)
+                    {
+                        <button type="button" class="seed-tool" title="Place @p.Name (@p.Category) at the centre" @onclick="() => StampPreset(p)">@p.Name</button>
+                    }
+                </div>
+            </div>
+
+            @* Persist the current drawing to this browser's local storage and restore it later — a quick
+               scratch slot that survives reloads without touching the RLE textbox below. *@
+            <div class="seed-group">
+                <span class="seed-group-title">Saved seed</span>
+                <div class="seed-group-body seed-group-body--fill">
+                    <button type="button" class="seed-tool" @onclick="SaveSeedAsync">Save seed</button>
+                    <button type="button" class="seed-tool" disabled="@(!_hasSaved)" @onclick="LoadSeedAsync">Load saved seed</button>
+                </div>
+                @if (_seedMsg is not null)
                 {
-                    <span class="seed-warn">Some cells were outside the 100×100 grid and dropped.</span>
+                    <span class="seed-note">@_seedMsg</span>
                 }
             </div>
+
+            <div class="seed-group seed-import">
+                <label class="seed-group-title" for="rle">Import RLE / plaintext</label>
+                <textarea id="rle" class="seed-rle" @bind="_rle" placeholder="bo$2bo$3o!   or   .O./..O/OOO"></textarea>
+                <div class="seed-import-row">
+                    <button type="button" class="seed-tool" @onclick="ParseImport">Load to grid</button>
+                    @if (_clamped)
+                    {
+                        <span class="seed-warn">Some cells were outside the 100×100 grid and dropped.</span>
+                    }
+                </div>
+            </div>
+
+            @* Host-supplied secondary knobs, parked at the very bottom of the column below the everyday tools. *@
+            @if (Advanced is not null)
+            {
+                <div class="seed-group">@Advanced</div>
+            }
         </div>
-        </div>
+
+        <canvas @ref="_canvas" class="seed-canvas"></canvas>
     </div>
 </div>
 
@@ -53,11 +100,35 @@
     private int _id;
     private bool _ready;
 
+    // A single scratch slot in the browser's localStorage: save stores the current board as base64
+    // (the same packing POST /game consumes), load restores it. Survives reloads; per-browser, not shared.
+    private const string SavedSeedKey = "gol.seed";
+    private bool _hasSaved;
+    private string? _seedMsg;
+
     private string _rle = "";
     private bool _clamped;
 
     /// <summary>Raised after any board change so the parent can re-evaluate its Create affordance.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>
+    /// Host-supplied page chrome (back link + title) rendered at the very top of the control column, so the
+    /// canvas beside it can rise to the top of the row instead of sitting under a page header.
+    /// </summary>
+    [Parameter] public RenderFragment? Header { get; set; }
+
+    /// <summary>
+    /// Host-supplied primary action (the create button + its messages) rendered near the top of the control
+    /// column, so the page's primary action sits with the editing tools without this component owning it.
+    /// </summary>
+    [Parameter] public RenderFragment? Settings { get; set; }
+
+    /// <summary>
+    /// Host-supplied secondary knobs (advanced settings) parked at the bottom of the control column, below
+    /// the everyday editing tools.
+    /// </summary>
+    [Parameter] public RenderFragment? Advanced { get; set; }
 
     /// <summary>The current alive-cell count (for the parent's summary).</summary>
     public int AliveCount => _board.AliveCount;
@@ -75,6 +146,11 @@
         _self = DotNetObjectReference.Create(this);
         _id = await _module.InvokeAsync<int>("create", _canvas, _self, SeedBoard.Size);
         _ready = true;
+
+        // Reflect any previously saved seed so "Load saved seed" starts enabled when there's one to load.
+        var existing = await JS.InvokeAsync<string?>("localStorage.getItem", SavedSeedKey);
+        _hasSaved = !string.IsNullOrEmpty(existing);
+        StateHasChanged();
     }
 
     [JSInvokable]
@@ -114,6 +190,32 @@
     {
         _board.Randomize(Random.Shared, 0.18);
         return PushAsync();
+    }
+
+    // Persist the current board to local storage. The board itself doesn't change, so no canvas re-render
+    // or parent notification is needed — just enable the Load button and confirm.
+    private async Task SaveSeedAsync()
+    {
+        await JS.InvokeVoidAsync("localStorage.setItem", SavedSeedKey, _board.ToBase64());
+        _hasSaved = true;
+        _seedMsg = $"Saved {_board.AliveCount} live cell{(_board.AliveCount == 1 ? "" : "s")} to this browser.";
+        StateHasChanged();
+    }
+
+    private async Task LoadSeedAsync()
+    {
+        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", SavedSeedKey);
+        if (!_board.TryLoadBase64(stored))
+        {
+            // Nothing usable in the slot (cleared elsewhere, or corrupt): leave the board untouched.
+            _hasSaved = false;
+            _seedMsg = "No saved seed to load.";
+            StateHasChanged();
+            return;
+        }
+
+        _seedMsg = "Loaded the saved seed.";
+        await PushAsync();
     }
 
     private Task ParseImport()

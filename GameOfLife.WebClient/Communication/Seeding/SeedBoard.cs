@@ -70,6 +70,45 @@ public sealed class SeedBoard
         foreach (var (x, y) in cells) Set(x, y, true);
     }
 
+    /// <summary>
+    /// Replaces the board from the row-major, MSB-first packing produced by <see cref="ToPackedBytes"/>
+    /// (the exact inverse). Used to restore a seed persisted as base64 (save/load to local storage).
+    /// </summary>
+    /// <exception cref="ArgumentException">The span is not exactly <see cref="ByteLength"/> bytes.</exception>
+    public void LoadPacked(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length != ByteLength)
+            throw new ArgumentException($"Expected {ByteLength} bytes, got {bytes.Length}.", nameof(bytes));
+
+        var count = 0;
+        for (var i = 0; i < _cells.Length; i++)
+        {
+            var alive = (bytes[i >> 3] & (0x80 >> (i & 7))) != 0;
+            _cells[i] = alive;
+            if (alive) count++;
+        }
+        AliveCount = count;
+    }
+
+    /// <summary>
+    /// Restores the board from a base64 <see cref="ToBase64"/> string, returning <c>false</c> (leaving the
+    /// board untouched) for null/empty, non-base64, or wrong-length input — a lenient load for whatever
+    /// happens to sit in local storage.
+    /// </summary>
+    public bool TryLoadBase64(string? base64)
+    {
+        if (string.IsNullOrEmpty(base64)) return false;
+
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(base64); }
+        catch (FormatException) { return false; }
+
+        if (bytes.Length != ByteLength) return false;
+
+        LoadPacked(bytes);
+        return true;
+    }
+
     /// <summary>Stamps <paramref name="pattern"/> with its top-left at <c>(ox, oy)</c>, clipping OOB cells.</summary>
     public void Stamp(SeedPattern pattern, int ox, int oy)
     {
