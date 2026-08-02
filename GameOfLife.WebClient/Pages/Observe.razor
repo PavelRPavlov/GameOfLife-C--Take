@@ -5,7 +5,7 @@
 
 @* The read-only observer surface (wayfinder #19). The /observe route: a secret-less viewer onto the
    single game. It shows live status + generation and embeds the shared <GameViewport/> (#15), driven by
-   GameStore.AttachAsync (subscribe-first snapshot, then live deltas) — and carries no control
+   GameStore.Attach (subscribe-first snapshot, then live deltas) — and carries no control
    affordances, since a viewer holds no admin capability (#14). It is the strict read-only subset of the
    admin control panel (#18): same status readout, same viewport, minus the controls. *@
 
@@ -51,7 +51,7 @@
         if (Store.Status is not GameStatus.NoGame && !_attached)
         {
             _attached = true;
-            await Store.AttachAsync();
+            await Store.Attach();
         }
     }
 

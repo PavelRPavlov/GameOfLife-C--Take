@@ -43,7 +43,7 @@ public sealed class SignalRGameStream : IGameStream
         _hub.Closed += _ => Raise(StreamConnectionState.Closed);
     }
 
-    public Task ConnectAsync(CancellationToken ct = default) => _hub.StartAsync(ct);
+    public Task Connect(CancellationToken ct = default) => _hub.StartAsync(ct);
 
     public async ValueTask DisposeAsync() => await _hub.DisposeAsync();
 

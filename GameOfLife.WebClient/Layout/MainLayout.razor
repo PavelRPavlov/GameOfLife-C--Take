@@ -23,7 +23,7 @@
             else
             {
                 <span>Can't reach the server.</span>
-                <button type="button" @onclick="RetryAsync">Retry</button>
+                <button type="button" @onclick="Retry">Retry</button>
             }
         </div>
     }
@@ -39,12 +39,12 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-            await Shell.InitializeAsync();
+            await Shell.Initialize();
     }
 
     private void OnShellChanged() => InvokeAsync(StateHasChanged);
 
-    private async Task RetryAsync() => await Shell.RetryAsync();
+    private async Task Retry() => await Shell.Retry();
 
     public void Dispose() => Shell.Changed -= OnShellChanged;
 }

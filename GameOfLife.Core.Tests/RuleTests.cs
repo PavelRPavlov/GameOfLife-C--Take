@@ -10,7 +10,7 @@ public class RuleTests
     [InlineData("B/S")]        // empty groups are valid (nothing born, nothing survives)
     [InlineData("B1/S")]
     [InlineData("B12345678/S012345678")]
-    public void Parse_accepts_well_formed_rules(string rule)
+    public void Given_a_well_formed_rule_string_When_parsed_Then_it_is_accepted(string rule)
     {
         var parsed = Rule.Parse(rule);
         Assert.NotNull(parsed);
@@ -27,20 +27,20 @@ public class RuleTests
     [InlineData("B3/S223")]    // repeated digit within survival group
     [InlineData("")]
     [InlineData("garbage")]
-    public void Parse_rejects_malformed_or_B0_rules(string rule)
+    public void Given_a_malformed_or_B0_rule_string_When_parsed_Then_it_is_rejected(string rule)
     {
         Assert.Throws<FormatException>(() => Rule.Parse(rule));
         Assert.False(Rule.TryParse(rule, out _));
     }
 
     [Fact]
-    public void TryParse_null_returns_false()
+    public void Given_a_null_rule_string_When_TryParse_is_called_Then_it_returns_false()
     {
         Assert.False(Rule.TryParse(null, out _));
     }
 
     [Fact]
-    public void B3_S23_birth_and_survival_sets_are_correct()
+    public void Given_the_B3_S23_rule_When_parsed_Then_birth_and_survival_sets_are_correct()
     {
         var rule = Rule.Parse("B3/S23");
 
@@ -54,7 +54,7 @@ public class RuleTests
     }
 
     [Fact]
-    public void ToString_is_canonical_and_ascending()
+    public void Given_a_parsed_rule_When_converted_to_string_Then_it_is_canonical_and_ascending()
     {
         Assert.Equal("B3/S23", Rule.Parse("B3/S32").ToString());
         Assert.Equal("B36/S23", Rule.Parse("B63/S23").ToString());

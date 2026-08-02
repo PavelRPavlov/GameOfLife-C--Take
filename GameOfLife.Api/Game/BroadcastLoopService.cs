@@ -15,7 +15,7 @@ public sealed class BroadcastLoopService(GameHost host, IOptions<GameOptions> op
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
-                await host.BroadcastPendingAsync();
+                await host.BroadcastPending();
         }
         catch (OperationCanceledException)
         {

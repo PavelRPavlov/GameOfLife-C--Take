@@ -9,7 +9,7 @@ namespace GameOfLife.Api.Features.GameControl;
 /// </summary>
 internal static class ControlDispatch
 {
-    public static async Task<IResult> RunAsync(Func<string?, Task<ControlOutcome>> verb, HttpContext context)
+    public static async Task<IResult> Run(Func<string?, Task<ControlOutcome>> verb, HttpContext context)
     {
         var secret = context.Request.Headers["X-Admin-Secret"].ToString();
         var outcome = await verb(secret);

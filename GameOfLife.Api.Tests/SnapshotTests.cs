@@ -11,24 +11,24 @@ namespace GameOfLife.Api.Tests;
 public class SnapshotTests
 {
     [Fact]
-    public async Task Snapshot_with_no_game_maps_to_GAME_NOT_FOUND()
+    public async Task Given_no_game_exists_When_a_snapshot_is_requested_Then_the_result_is_404_game_not_found()
     {
         await using var ctx = new ApiTestContext();
 
-        var response = await ctx.GetSnapshotAsync();
+        var response = await ctx.GetSnapshot();
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.GameNotFound);
+        var error = await response.ReadError(ErrorCodes.GameNotFound);
         Assert.Empty(error.Errors);
     }
 
     [Fact]
-    public async Task A_created_game_reports_Created_at_generation_0()
+    public async Task Given_a_newly_created_game_When_a_snapshot_is_requested_Then_it_reports_created_at_generation_0()
     {
         await using var ctx = new ApiTestContext();
-        await ctx.CreateGameAsync(); // autoStart false → held Created
+        await ctx.CreateGame(); // autoStart false → held Created
 
-        var snapshot = await (await ctx.GetSnapshotAsync()).Content.ReadFromJsonAsync<SnapshotResponse>(ApiTestContext.Json);
+        var snapshot = await (await ctx.GetSnapshot()).Content.ReadFromJsonAsync<SnapshotResponse>(ApiTestContext.Json);
 
         Assert.Equal(GameStatus.Created, snapshot!.Status);
         Assert.Equal(0, snapshot.Gen);
@@ -36,14 +36,14 @@ public class SnapshotTests
     }
 
     [Fact]
-    public async Task Snapshot_reflects_the_seed_cells_placed_at_the_origin()
+    public async Task Given_a_game_seeded_with_cells_at_an_origin_When_a_snapshot_is_requested_Then_it_reflects_the_seed_cells_placed_at_the_origin()
     {
         await using var ctx = new ApiTestContext();
         // Blinker centred at grid (row 10, col 10), placed at origin (1000, 2000).
         var seed = TestSeeds.HorizontalBlinker(row: 10, col: 10);
-        await ctx.CreateGameAsync(Requests.ValidCreate(seed: seed, originX: "1000", originY: "2000"));
+        await ctx.CreateGame(Requests.ValidCreate(seed: seed, originX: "1000", originY: "2000"));
 
-        var snapshot = await (await ctx.GetSnapshotAsync()).Content.ReadFromJsonAsync<SnapshotResponse>(ApiTestContext.Json);
+        var snapshot = await (await ctx.GetSnapshot()).Content.ReadFromJsonAsync<SnapshotResponse>(ApiTestContext.Json);
 
         // (row, col) → (x = origin.x + col, y = origin.y + row).
         var expected = new HashSet<(string, string)>

@@ -19,7 +19,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void EmptyBoard_EncodesTo1250ZeroBytes()
+    public void Given_an_empty_board_When_encoding_to_packed_bytes_Then_it_produces_1250_zero_bytes()
     {
         var bytes = new SeedBoard().ToPackedBytes();
 
@@ -28,7 +28,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void ToBase64_DecodesToExactly1250Bytes()
+    public void Given_an_empty_board_When_encoding_to_base64_Then_it_decodes_to_exactly_1250_bytes()
     {
         var decoded = Convert.FromBase64String(new SeedBoard().ToBase64());
         Assert.Equal(1250, decoded.Length);
@@ -40,7 +40,7 @@ public class SeedBoardTests
     [InlineData(7, 0, 0, 0x01)] // bit 7  -> byte 0, LSB
     [InlineData(8, 0, 1, 0x80)] // bit 8  -> byte 1, MSB
     [InlineData(0, 1, 12, 0x08)] // bit 100 -> byte 12, mask 0x80>>4
-    public void Set_SetsTheExpectedBit(int x, int y, int byteIndex, int mask)
+    public void Given_a_cell_coordinate_When_setting_it_Then_the_expected_bit_is_set_and_no_other_byte_is_touched(int x, int y, int byteIndex, int mask)
     {
         var board = new SeedBoard();
         board.Set(x, y, true);
@@ -53,7 +53,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Encoder_RoundTripsWithBackendDecode()
+    public void Given_live_cells_on_a_board_When_encoded_Then_the_packing_round_trips_with_the_backend_decode()
     {
         var board = new SeedBoard();
         (int X, int Y)[] live = [(0, 0), (5, 3), (99, 99), (0, 99), (99, 0), (42, 17)];
@@ -65,7 +65,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Set_TracksAliveCount_AndIsIdempotent()
+    public void Given_a_board_When_setting_cells_on_and_off_Then_the_alive_count_tracks_and_setting_is_idempotent()
     {
         var board = new SeedBoard();
         board.Set(1, 1, true);
@@ -78,7 +78,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Set_OutOfBounds_IsIgnored()
+    public void Given_out_of_bounds_coordinates_When_setting_them_Then_they_are_ignored()
     {
         var board = new SeedBoard();
         board.Set(-1, 0, true);
@@ -90,7 +90,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Clear_And_Invert_MaintainAliveCount()
+    public void Given_a_board_with_live_cells_When_inverted_and_cleared_Then_the_alive_count_is_maintained()
     {
         var board = new SeedBoard();
         board.Set(0, 0, true);
@@ -106,7 +106,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Stamp_ClipsCellsOutsideTheBoard()
+    public void Given_a_pattern_stamped_near_the_edge_When_stamping_Then_cells_outside_the_board_are_clipped()
     {
         var board = new SeedBoard();
         var block = SeedPatterns.All.First(p => p.Name == "Block"); // 2x2 at (0,0),(1,0),(0,1),(1,1)
@@ -119,7 +119,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void StampCentered_PlacesTheBoundingBoxInTheMiddle()
+    public void Given_a_pattern_When_stamped_centered_Then_its_bounding_box_is_placed_in_the_middle()
     {
         var board = new SeedBoard();
         var block = SeedPatterns.All.First(p => p.Name == "Block"); // 2x2
@@ -135,7 +135,7 @@ public class SeedBoardTests
     [Theory]
     [InlineData(0.0)] // density 0 → no cell alive
     [InlineData(1.0)] // density 1 → every cell alive
-    public void Randomize_AtExtremeDensities_FillsPredictably(double density)
+    public void Given_an_extreme_density_When_randomizing_Then_the_board_fills_predictably(double density)
     {
         var board = new SeedBoard();
         board.Set(0, 0, true); // pre-existing state must be overwritten
@@ -147,7 +147,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Randomize_AliveCount_MatchesTheEncodedBits()
+    public void Given_a_randomized_board_When_counting_alive_cells_Then_the_count_matches_the_encoded_bits()
     {
         var board = new SeedBoard();
         board.Randomize(new Random(42), 0.5);
@@ -159,7 +159,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Load_ReplacesTheBoard()
+    public void Given_a_board_with_existing_cells_When_loading_new_cells_Then_the_board_is_replaced()
     {
         var board = new SeedBoard();
         board.Set(0, 0, true);
@@ -172,7 +172,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void LoadPacked_IsTheExactInverseOfToPackedBytes()
+    public void Given_a_packed_board_When_loaded_back_Then_it_is_the_exact_inverse_of_ToPackedBytes()
     {
         var original = new SeedBoard();
         (int X, int Y)[] live = [(0, 0), (5, 3), (99, 99), (0, 99), (99, 0), (42, 17)];
@@ -187,7 +187,7 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void LoadPacked_ReplacesExistingCells()
+    public void Given_a_board_with_existing_cells_When_loading_an_all_dead_packing_Then_the_existing_cells_are_replaced()
     {
         var board = new SeedBoard();
         board.Set(1, 1, true);
@@ -201,11 +201,11 @@ public class SeedBoardTests
     [Theory]
     [InlineData(1249)]
     [InlineData(1251)]
-    public void LoadPacked_WrongLength_Throws(int length)
+    public void Given_a_packing_of_the_wrong_length_When_loading_it_Then_it_throws(int length)
         => Assert.Throws<ArgumentException>(() => new SeedBoard().LoadPacked(new byte[length]));
 
     [Fact]
-    public void TryLoadBase64_RoundTripsWithToBase64()
+    public void Given_a_base64_board_When_try_loaded_Then_it_round_trips_with_ToBase64()
     {
         var original = new SeedBoard();
         original.Set(3, 4, true);
@@ -225,7 +225,7 @@ public class SeedBoardTests
     [InlineData("")]
     [InlineData("not base64 !!!")]      // FormatException path
     [InlineData("YWJj")]                 // valid base64, but only 3 bytes — wrong length
-    public void TryLoadBase64_RejectsBadInput_AndLeavesTheBoardUntouched(string? input)
+    public void Given_bad_base64_input_When_try_loading_it_Then_it_is_rejected_and_the_board_is_left_untouched(string? input)
     {
         var board = new SeedBoard();
         board.Set(7, 7, true);

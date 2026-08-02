@@ -45,7 +45,7 @@ public static class ApiSurfaceRegistration
         if (!app.Environment.IsDevelopment())
             app.UseExceptionHandler(new ExceptionHandlerOptions
             {
-                ExceptionHandler = GlobalExceptionHandler.WriteRedactedResponseAsync,
+                ExceptionHandler = GlobalExceptionHandler.WriteRedactedResponse,
             });
 
         if (app.Environment.IsDevelopment())

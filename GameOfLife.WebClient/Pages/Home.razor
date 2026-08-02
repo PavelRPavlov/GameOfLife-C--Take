@@ -6,7 +6,7 @@
 
 @* The adaptive home page (wayfinder #17). One surface gated on whether a game exists — there is no
    session list: at most one game, or none. It reads the live GameStore.Status (seeded by the shell's
-   RefreshStatusAsync, then kept current by the SignalR ReceiveStatus push) and offers exactly one
+   RefreshStatus, then kept current by the SignalR ReceiveStatus push) and offers exactly one
    action for this client: Create when there's no game, Observe when there is.
 
    The reactive Create-disable is automatic: when any client creates the game, the backend's

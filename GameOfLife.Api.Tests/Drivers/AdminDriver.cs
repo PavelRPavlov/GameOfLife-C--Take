@@ -28,7 +28,7 @@ public sealed class AdminDriver(ApiTestContext ctx)
     /// <summary>Creates and takes ownership of the single game (asserting success at the world boundary).</summary>
     public async Task<CreateGameResponse> CreateGame(string? body = null)
     {
-        Game = await ctx.CreateGameAsync(body);
+        Game = await ctx.CreateGame(body);
         return Game;
     }
 
@@ -50,6 +50,6 @@ public sealed class AdminDriver(ApiTestContext ctx)
 
     private async Task Control(string verb)
     {
-        LastControl = await ctx.ControlAsync(verb, AdminSecret);
+        LastControl = await ctx.Control(verb, AdminSecret);
     }
 }

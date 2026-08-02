@@ -14,7 +14,7 @@ namespace GameOfLife.Api.Tests;
 public class CreateGameValidationTests
 {
     [Fact]
-    public async Task Valid_request_creates_the_game_and_returns_201_with_a_secret()
+    public async Task Given_a_valid_create_request_When_posted_Then_the_game_is_created_and_201_is_returned_with_a_secret()
     {
         await using var ctx = new ApiTestContext();
 
@@ -35,7 +35,7 @@ public class CreateGameValidationTests
     }
 
     [Fact]
-    public async Task AutoStart_true_reports_Running()
+    public async Task Given_a_create_request_with_autostart_true_When_posted_Then_the_game_reports_running()
     {
         await using var ctx = new ApiTestContext();
 
@@ -49,19 +49,19 @@ public class CreateGameValidationTests
     [InlineData("", "no body at all")]
     [InlineData("not json", "malformed json")]
     [InlineData("null", "explicit json null deserializes to a null request")]
-    public async Task Empty_or_malformed_body_maps_to_MALFORMED_REQUEST_BODY(string json, string _)
+    public async Task Given_an_empty_or_malformed_body_When_posted_Then_the_result_is_400_malformed_request_body(string json, string _)
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.Client.PostAsync("/game", Requests.Json(json));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.MalformedRequestBody);
+        var error = await response.ReadError(ErrorCodes.MalformedRequestBody);
         Assert.Empty(error.Errors); // a body we couldn't read has no per-field breakdown
     }
 
     [Fact]
-    public async Task Unknown_property_maps_to_MALFORMED_REQUEST_BODY()
+    public async Task Given_a_body_with_an_unknown_property_When_posted_Then_the_result_is_400_malformed_request_body()
     {
         await using var ctx = new ApiTestContext();
         var json = Requests.ValidCreate().TrimEnd().TrimEnd('}') + ", \"surprise\": 1 }";
@@ -69,18 +69,18 @@ public class CreateGameValidationTests
         var response = await ctx.Client.PostAsync("/game", Requests.Json(json));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await response.ReadErrorAsync(ErrorCodes.MalformedRequestBody);
+        await response.ReadError(ErrorCodes.MalformedRequestBody);
     }
 
     [Fact]
-    public async Task Empty_object_reports_VALIDATION_FAILED_for_every_missing_field()
+    public async Task Given_an_empty_json_object_When_posted_Then_validation_fails_for_every_missing_field()
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.Client.PostAsync("/game", Requests.Json("{}"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
+        var error = await response.ReadError(ErrorCodes.ValidationFailed);
         var fields = error.Errors.Select(e => e.Field).ToHashSet();
         // rule is optional (falls back to the configured default), so it never appears as missing.
         Assert.Equal(new HashSet<string?> { "seed", "origin", "autoStart", "tickRate" }, fields);
@@ -91,7 +91,7 @@ public class CreateGameValidationTests
     [InlineData("\"origin\"", "origin")]
     [InlineData("\"autoStart\"", "autoStart")]
     [InlineData("\"tickRate\"", "tickRate")]
-    public async Task Missing_required_field_maps_to_VALIDATION_FAILED_with_that_field(string quotedField, string expectedField)
+    public async Task Given_a_body_missing_a_required_field_When_posted_Then_validation_fails_naming_that_field(string quotedField, string expectedField)
     {
         await using var ctx = new ApiTestContext();
         // Remove the named field's line from an otherwise-valid body.
@@ -105,21 +105,21 @@ public class CreateGameValidationTests
         var response = await ctx.Client.PostAsync("/game", Requests.Json(json));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
+        var error = await response.ReadError(ErrorCodes.ValidationFailed);
         Assert.Contains(error.Errors, e => e.Field == expectedField && !string.IsNullOrWhiteSpace(e.Message));
     }
 
     [Theory]
     [InlineData("not-base64!!", "not base64")]
     [InlineData("AAAA", "base64 but wrong length")]
-    public async Task Bad_seed_maps_to_VALIDATION_FAILED_on_seed(string seed, string _)
+    public async Task Given_a_bad_seed_When_posted_Then_validation_fails_on_seed(string seed, string _)
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate(seed: seed)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
+        var error = await response.ReadError(ErrorCodes.ValidationFailed);
         Assert.Contains(error.Errors, e => e.Field == "seed");
     }
 
@@ -127,14 +127,14 @@ public class CreateGameValidationTests
     [InlineData("-1", "0", "negative x")]
     [InlineData("0", "abc", "non-numeric y")]
     [InlineData("18446744073709551616", "0", "x above ulong max")]
-    public async Task Unparseable_origin_coordinate_maps_to_VALIDATION_FAILED_on_origin(string x, string y, string _)
+    public async Task Given_an_unparseable_origin_coordinate_When_posted_Then_validation_fails_on_origin(string x, string y, string _)
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate(originX: x, originY: y)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
+        var error = await response.ReadError(ErrorCodes.ValidationFailed);
         // origin stays a single object-level entry — not split into x/y.
         Assert.Contains(error.Errors, e => e.Field == "origin");
         Assert.DoesNotContain(error.Errors, e => e.Field is "x" or "y");
@@ -145,14 +145,14 @@ public class CreateGameValidationTests
     [InlineData("B3/S9", "digit out of range")]
     [InlineData("b3/s23", "lower case")]
     [InlineData("B3S23", "missing slash")]
-    public async Task Bad_rule_maps_to_VALIDATION_FAILED_on_rule(string rule, string _)
+    public async Task Given_a_bad_rule_When_posted_Then_validation_fails_on_rule(string rule, string _)
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate(rule: rule)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
+        var error = await response.ReadError(ErrorCodes.ValidationFailed);
         Assert.Contains(error.Errors, e => e.Field == "rule");
     }
 
@@ -161,21 +161,21 @@ public class CreateGameValidationTests
     [InlineData(0.05)]
     [InlineData(200.1)]
     [InlineData(1000)]
-    public async Task Out_of_range_tick_rate_maps_to_VALIDATION_FAILED_on_tickRate(double tickRate)
+    public async Task Given_an_out_of_range_tick_rate_When_posted_Then_validation_fails_on_tickRate(double tickRate)
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate(tickRate: tickRate)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
+        var error = await response.ReadError(ErrorCodes.ValidationFailed);
         Assert.Contains(error.Errors, e => e.Field == "tickRate");
     }
 
     [Theory]
     [InlineData(0.1)]   // MinTickRate boundary
     [InlineData(200.0)] // MaxTickRate boundary — raised from 60 for high-speed testing
-    public async Task Boundary_tick_rate_is_accepted_201(double tickRate)
+    public async Task Given_a_boundary_tick_rate_When_posted_Then_the_game_is_created_with_201(double tickRate)
     {
         await using var ctx = new ApiTestContext();
 
@@ -185,7 +185,7 @@ public class CreateGameValidationTests
     }
 
     [Fact]
-    public async Task Second_create_while_a_game_exists_maps_to_GAME_ALREADY_EXISTS()
+    public async Task Given_a_game_already_exists_When_a_second_create_is_posted_Then_the_result_is_409_game_already_exists()
     {
         await using var ctx = new ApiTestContext();
         var first = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate()));
@@ -194,7 +194,7 @@ public class CreateGameValidationTests
         var second = await ctx.Client.PostAsync("/game", Requests.Json(Requests.ValidCreate()));
 
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
-        var error = await second.ReadErrorAsync(ErrorCodes.GameAlreadyExists);
+        var error = await second.ReadError(ErrorCodes.GameAlreadyExists);
         Assert.Empty(error.Errors);
     }
 }

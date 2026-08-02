@@ -22,7 +22,7 @@ public sealed class ProjectReferenceRules
     /// Every project in the solution MUST appear as a key here — a project with
     /// no permitted references maps to an empty set. This is deliberate: adding a
     /// brand-new project to the solution without classifying it here fails
-    /// <see cref="Every_project_is_classified"/>, forcing a conscious decision
+    /// <see cref="Given_the_projects_on_disk_When_compared_to_the_reference_map_Then_every_project_is_classified"/>, forcing a conscious decision
     /// about what that project is allowed to depend on.
     /// </summary>
     private static readonly IReadOnlyDictionary<string, string[]> AllowedReferences =
@@ -62,7 +62,7 @@ public sealed class ProjectReferenceRules
     /// </summary>
     [Theory]
     [MemberData(nameof(AllProjectFiles))]
-    public void Project_only_references_allowed_projects(string projectName)
+    public void Given_a_project_When_its_references_are_inspected_Then_only_allowed_projects_are_referenced(string projectName)
     {
         Assert.True(
             AllowedReferences.TryGetValue(projectName, out var allowed),
@@ -86,7 +86,7 @@ public sealed class ProjectReferenceRules
     /// never by referencing the API project directly.
     /// </summary>
     [Fact]
-    public void WebClient_must_not_reference_Api()
+    public void Given_the_WebClient_project_When_its_references_are_inspected_Then_it_does_not_reference_Api()
     {
         var references = ReferencedProjectNames("GameOfLife.WebClient");
 
@@ -98,7 +98,7 @@ public sealed class ProjectReferenceRules
     /// accounted for in the reference map, and vice versa.
     /// </summary>
     [Fact]
-    public void Every_project_is_classified()
+    public void Given_the_projects_on_disk_When_compared_to_the_reference_map_Then_every_project_is_classified()
     {
         var onDisk = ProjectFiles()
             .Select(Path.GetFileNameWithoutExtension)

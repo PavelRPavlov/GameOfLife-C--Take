@@ -25,7 +25,7 @@ public sealed class HttpGameApi : IGameApi
         _secretStore = secretStore;
     }
 
-    public async Task<Result<CreatedGame, GameError>> CreateGameAsync(CreateGameRequest request, CancellationToken ct = default)
+    public async Task<Result<CreatedGame, GameError>> CreateGame(CreateGameRequest request, CancellationToken ct = default)
     {
         // Client-side guard: the seam validates seed/rule/tick-rate before the round-trip, so a backend
         // ValidationRejected is a programming error rather than an expected outcome (see GameError).
@@ -54,13 +54,13 @@ public sealed class HttpGameApi : IGameApi
             ct);
     }
 
-    public Task<Result<ControlOutcome, GameError>> StartAsync(CancellationToken ct = default) => ControlAsync("start", ct);
-    public Task<Result<ControlOutcome, GameError>> StopAsync(CancellationToken ct = default) => ControlAsync("stop", ct);
-    public Task<Result<ControlOutcome, GameError>> PauseAsync(CancellationToken ct = default) => ControlAsync("pause", ct);
-    public Task<Result<ControlOutcome, GameError>> ResumeAsync(CancellationToken ct = default) => ControlAsync("resume", ct);
-    public Task<Result<ControlOutcome, GameError>> StepAsync(CancellationToken ct = default) => ControlAsync("step", ct);
+    public Task<Result<ControlOutcome, GameError>> Start(CancellationToken ct = default) => Control("start", ct);
+    public Task<Result<ControlOutcome, GameError>> Stop(CancellationToken ct = default) => Control("stop", ct);
+    public Task<Result<ControlOutcome, GameError>> Pause(CancellationToken ct = default) => Control("pause", ct);
+    public Task<Result<ControlOutcome, GameError>> Resume(CancellationToken ct = default) => Control("resume", ct);
+    public Task<Result<ControlOutcome, GameError>> Step(CancellationToken ct = default) => Control("step", ct);
 
-    private Task<Result<ControlOutcome, GameError>> ControlAsync(string verb, CancellationToken ct) =>
+    private Task<Result<ControlOutcome, GameError>> Control(string verb, CancellationToken ct) =>
         SendAsync(
             () =>
             {
@@ -77,7 +77,7 @@ public sealed class HttpGameApi : IGameApi
             },
             ct);
 
-    public Task<Result<Snapshot, GameError>> GetSnapshotAsync(CancellationToken ct = default) =>
+    public Task<Result<Snapshot, GameError>> GetSnapshot(CancellationToken ct = default) =>
         SendAsync(
             () => new HttpRequestMessage(HttpMethod.Get, "snapshot"),
             async (response, token) =>
@@ -118,7 +118,7 @@ public sealed class HttpGameApi : IGameApi
             if (response.IsSuccessStatusCode)
                 return Result<T, GameError>.Ok(await parseSuccess(response, ct));
 
-            var envelope = await ReadEnvelopeAsync(response, ct);
+            var envelope = await ReadEnvelope(response, ct);
             return Result<T, GameError>.Err(ToGameError(envelope));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -132,7 +132,7 @@ public sealed class HttpGameApi : IGameApi
     }
 
     /// <summary>Reads the error envelope from a non-2xx body, or null if the body isn't a usable envelope.</summary>
-    private static async Task<ErrorEnvelope?> ReadEnvelopeAsync(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<ErrorEnvelope?> ReadEnvelope(HttpResponseMessage response, CancellationToken ct)
     {
         try
         {

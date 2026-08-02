@@ -19,7 +19,7 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Attach_reconciles_at_B_discarding_deltas_up_to_B_and_applying_the_rest()
+    public async Task Given_deltas_race_an_in_flight_attach_snapshot_When_the_snapshot_reconciles_Then_stale_deltas_are_discarded_and_the_chaining_delta_is_applied()
     {
         var (store, api, stream, _) = NewStore();
         api.EnqueueSnapshot(Snap(5, GameStatus.Running, C(1, 1), C(2, 2)));
@@ -32,7 +32,7 @@ public sealed class GameStoreTests
         store.DeltaApplied += _ => deltaEvents++;
 
         // Attach arms buffering, connects, then blocks on the gated snapshot fetch.
-        var attach = store.AttachAsync();
+        var attach = store.Attach();
 
         // These race the in-flight fetch and must be buffered.
         stream.PushDelta(new Delta(3, 4, [C(9, 9)], []));   // ToGen 4 ≤ 5 → discarded at reconcile
@@ -50,11 +50,11 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Steady_state_discards_duplicate_and_out_of_order_deltas()
+    public async Task Given_an_attached_store_at_steady_state_When_duplicate_and_out_of_order_deltas_arrive_Then_they_are_discarded()
     {
         var (store, api, stream, _) = NewStore();
         api.EnqueueSnapshot(Snap(5, GameStatus.Running, C(1, 1)));
-        await store.AttachAsync();
+        await store.Attach();
 
         var applied = 0;
         store.DeltaApplied += _ => applied++;
@@ -69,12 +69,12 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task A_gap_delta_triggers_a_resync_snapshot_refetch()
+    public async Task Given_an_attached_store_When_a_delta_arrives_with_a_generation_gap_Then_a_resync_snapshot_is_refetched()
     {
         var (store, api, stream, _) = NewStore();
         api.EnqueueSnapshot(Snap(5, GameStatus.Running, C(1, 1)));   // attach bootstrap
         api.EnqueueSnapshot(Snap(8, GameStatus.Running, C(4, 4)));   // resync bootstrap
-        await store.AttachAsync();
+        await store.Attach();
 
         // Gap: FromGen 7 cannot chain onto current gen 5 → resync rule trips.
         stream.PushDelta(new Delta(7, 8, [C(9, 9)], []));
@@ -86,10 +86,10 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Status_pushes_update_status_and_raise_only_on_change()
+    public async Task Given_a_connected_store_When_status_pushes_arrive_Then_status_updates_and_the_event_raises_only_on_change()
     {
         var (store, _, stream, _) = NewStore();
-        await store.ConnectAsync();
+        await store.Connect();
 
         var seen = new List<GameStatus>();
         store.StatusChanged += s => seen.Add(s);
@@ -103,7 +103,7 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public void Connection_state_changes_are_re_surfaced_from_the_stream()
+    public void Given_a_store_subscribed_to_the_stream_When_connection_state_changes_are_pushed_Then_they_are_re_surfaced()
     {
         var (store, _, stream, _) = NewStore();
 
@@ -120,7 +120,7 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Disposing_the_store_unsubscribes_from_stream_connection_state()
+    public async Task Given_a_disposed_store_When_a_connection_state_change_is_pushed_Then_it_no_longer_reacts()
     {
         var (store, _, stream, _) = NewStore();
         var seen = 0;
@@ -133,14 +133,14 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Create_success_persists_the_admin_secret()
+    public async Task Given_a_successful_create_When_the_game_is_created_Then_the_admin_secret_is_persisted()
     {
         var (store, api, _, secret) = NewStore();
         api.CreateResult = Result<CreatedGame, GameError>.Ok(
             new CreatedGame("secret-abc", GameStatus.Created, 0, 2.0, "B3/S23"));
 
         var request = new CreateGameRequest("AAAA", C(0, 0), "B3/S23", 2.0, AutoStart: false);
-        var result = await store.CreateGameAsync(request);
+        var result = await store.CreateGame(request);
 
         Assert.True(result.IsSuccess);
         Assert.True(secret.HasSecret);
@@ -149,20 +149,20 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task A_forbidden_control_response_clears_the_stale_secret()
+    public async Task Given_a_stored_admin_secret_When_a_control_call_is_forbidden_Then_the_stale_secret_is_cleared()
     {
         var (store, api, _, secret) = NewStore();
-        await secret.SetAsync("stale-secret");
+        await secret.Set("stale-secret");
         api.ControlResult = Result<ControlOutcome, GameError>.Err(new GameError.Forbidden("forbidden"));
 
-        var result = await store.StartAsync();
+        var result = await store.Start();
 
         Assert.True(result.IsError);
         Assert.False(secret.HasSecret);
     }
 
     [Fact]
-    public async Task RefreshStatus_seeds_status_and_generation_without_populating_live_cells()
+    public async Task Given_a_snapshot_carrying_cells_When_refreshing_status_Then_status_and_generation_are_seeded_without_populating_live_cells()
     {
         var (store, api, _, _) = NewStore();
         // The snapshot carries cells, but the status-seed path must discard them.
@@ -173,7 +173,7 @@ public sealed class GameStoreTests
         store.StatusChanged += statusEvents.Add;
         store.SnapshotApplied += _ => snapshotEvents++;
 
-        var result = await store.RefreshStatusAsync();
+        var result = await store.RefreshStatus();
 
         Assert.True(result.IsSuccess);
         Assert.Equal(GameStatus.Running, result.Value);
@@ -185,12 +185,12 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task RefreshStatus_on_404_seeds_NoGame()
+    public async Task Given_a_404_snapshot_When_refreshing_status_Then_NoGame_is_seeded()
     {
         var (store, api, _, _) = NewStore();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
 
-        var result = await store.RefreshStatusAsync();
+        var result = await store.RefreshStatus();
 
         Assert.True(result.IsError);
         Assert.IsType<GameError.NoGame>(result.Error);
@@ -198,23 +198,23 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task RefreshStatus_transport_failure_is_distinguishable_from_NoGame()
+    public async Task Given_a_transport_failure_When_refreshing_status_Then_the_error_is_distinguishable_from_NoGame()
     {
         var (store, api, _, _) = NewStore();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.Transport("offline")));
 
-        var result = await store.RefreshStatusAsync();
+        var result = await store.RefreshStatus();
 
         Assert.True(result.IsError);
         Assert.IsType<GameError.Transport>(result.Error); // caller can tell "can't reach server" from NoGame
     }
 
     [Fact]
-    public async Task RefreshStatus_does_not_arm_the_attach_buffer_so_deltas_stay_dropped()
+    public async Task Given_a_refreshed_status_without_attach_When_a_delta_races_the_seed_Then_it_is_dropped_because_the_buffer_is_not_armed()
     {
         var (store, api, stream, _) = NewStore();
         api.EnqueueSnapshot(Snap(7, GameStatus.Running, C(1, 1)));
-        await store.RefreshStatusAsync();
+        await store.RefreshStatus();
 
         var applied = 0;
         store.DeltaApplied += _ => applied++;
@@ -228,46 +228,46 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Every_control_verb_delegates_and_applies_status_and_generation_on_success()
+    public async Task Given_a_store_When_each_control_verb_succeeds_Then_it_delegates_and_applies_status_and_generation()
     {
         var (store, api, _, _) = NewStore();
 
         // Each verb funnels through the same success path (SetStatus + SetGeneration); walk all five so
         // start/stop/pause/resume/step are each exercised, not just start.
         api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Running, 3));
-        Assert.True((await store.StartAsync()).IsSuccess);
+        Assert.True((await store.Start()).IsSuccess);
         Assert.Equal(GameStatus.Running, store.Status);
         Assert.Equal(3, store.Generation);
 
         api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Paused, 3));
-        Assert.True((await store.PauseAsync()).IsSuccess);
+        Assert.True((await store.Pause()).IsSuccess);
         Assert.Equal(GameStatus.Paused, store.Status);
 
         api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Running, 3));
-        Assert.True((await store.ResumeAsync()).IsSuccess);
+        Assert.True((await store.Resume()).IsSuccess);
         Assert.Equal(GameStatus.Running, store.Status);
 
         api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Paused, 4));
-        Assert.True((await store.StepAsync()).IsSuccess);
+        Assert.True((await store.Step()).IsSuccess);
         Assert.Equal(4, store.Generation); // step advances the generation
 
         api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.NoGame, 4));
-        Assert.True((await store.StopAsync()).IsSuccess);
+        Assert.True((await store.Stop()).IsSuccess);
         Assert.Equal(GameStatus.NoGame, store.Status);
     }
 
     [Fact]
-    public async Task HasAdminSecret_reflects_the_secret_store()
+    public async Task Given_a_store_When_the_secret_store_gains_a_secret_Then_HasAdminSecret_reflects_it()
     {
         var (store, _, _, secret) = NewStore();
 
         Assert.False(store.HasAdminSecret);
-        await secret.SetAsync("a-secret");
+        await secret.Set("a-secret");
         Assert.True(store.HasAdminSecret);
     }
 
     [Fact]
-    public async Task Attach_failure_on_404_seeds_NoGame_and_leaves_the_store_unobserving()
+    public async Task Given_a_404_bootstrap_When_attach_fails_Then_NoGame_is_seeded_and_the_store_stays_unobserving()
     {
         var (store, api, stream, _) = NewStore();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
@@ -275,7 +275,7 @@ public sealed class GameStoreTests
         var snapshotEvents = 0;
         store.SnapshotApplied += _ => snapshotEvents++;
 
-        var result = await store.AttachAsync();
+        var result = await store.Attach();
 
         Assert.True(result.IsError);
         Assert.IsType<GameError.NoGame>(result.Error);
@@ -291,17 +291,17 @@ public sealed class GameStoreTests
     }
 
     [Fact]
-    public async Task Attach_failure_on_transport_error_does_not_seed_NoGame()
+    public async Task Given_an_attached_running_store_When_a_reattach_fails_on_transport_error_Then_NoGame_is_not_seeded()
     {
         var (store, api, _, _) = NewStore();
         // Start from a known non-default status so a spurious NoGame-seed would be observable.
         api.EnqueueSnapshot(Snap(5, GameStatus.Running, C(1, 1)));
-        await store.AttachAsync();
+        await store.Attach();
         Assert.Equal(GameStatus.Running, store.Status);
 
         // A resync/attach transport failure must not overwrite the last-known status with NoGame.
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.Transport("offline")));
-        var result = await store.AttachAsync();
+        var result = await store.Attach();
 
         Assert.True(result.IsError);
         Assert.IsType<GameError.Transport>(result.Error);

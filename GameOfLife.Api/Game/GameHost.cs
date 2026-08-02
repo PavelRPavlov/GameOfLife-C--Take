@@ -45,7 +45,7 @@ public sealed class GameHost
     /// Atomically claims the empty slot with a new game, or refuses if one already exists.
     /// Returns the created session (with its one-time secret) on success, or null on conflict.
     /// </summary>
-    internal async Task<GameSession?> TryCreateAsync(GameParameters parameters)
+    internal async Task<GameSession?> TryCreate(GameParameters parameters)
     {
         await _stateGate.WaitAsync();
         try
@@ -58,8 +58,8 @@ public sealed class GameHost
             // Establish the broadcast baseline at gen 0 (the seed) up front, so the very first
             // delta — including an immediate broadcast from a single-step — is computed and pushed
             // rather than being swallowed as a lazily-initialized baseline.
-            await SetBroadcastBaselineAsync(session, parameters.Seed);
-            await PushStatusAsync(session.Status);
+            await SetBroadcastBaseline(session, parameters.Seed);
+            await PushStatus(session.Status);
             return session;
         }
         finally
@@ -69,49 +69,49 @@ public sealed class GameHost
     }
 
     // Start / pause / resume / step each require a specific current state; stop is legal from any
-    // existing state. The gate + existence→auth→state boilerplate lives once in RunControlAsync;
+    // existing state. The gate + existence→auth→state boilerplate lives once in RunControl;
     // each verb supplies only its required state and its transition body.
 
-    public Task<ControlOutcome> StartAsync(string? secret) =>
-        RunControlAsync(secret, requiredState: GameStatus.Created, async session =>
+    public Task<ControlOutcome> Start(string? secret) =>
+        RunControl(secret, requiredState: GameStatus.Created, async session =>
         {
             session.Start();
-            await PushStatusAsync(session.Status);
+            await PushStatus(session.Status);
             return ControlOutcome.Ok(session.Status, session.Current.Number);
         });
 
-    public Task<ControlOutcome> PauseAsync(string? secret) =>
-        RunControlAsync(secret, requiredState: GameStatus.Running, async session =>
+    public Task<ControlOutcome> Pause(string? secret) =>
+        RunControl(secret, requiredState: GameStatus.Running, async session =>
         {
-            await session.PauseAsync();
-            await PushStatusAsync(session.Status);
+            await session.Pause();
+            await PushStatus(session.Status);
             return ControlOutcome.Ok(session.Status, session.Current.Number);
         });
 
-    public Task<ControlOutcome> ResumeAsync(string? secret) =>
-        RunControlAsync(secret, requiredState: GameStatus.Paused, async session =>
+    public Task<ControlOutcome> Resume(string? secret) =>
+        RunControl(secret, requiredState: GameStatus.Paused, async session =>
         {
             session.Resume();
-            await PushStatusAsync(session.Status);
+            await PushStatus(session.Status);
             return ControlOutcome.Ok(session.Status, session.Current.Number);
         });
 
-    public Task<ControlOutcome> StepAsync(string? secret) =>
-        RunControlAsync(secret, requiredState: GameStatus.Paused, async session =>
+    public Task<ControlOutcome> Step(string? secret) =>
+        RunControl(secret, requiredState: GameStatus.Paused, async session =>
         {
             var generation = session.Step();
             // Single-step broadcasts immediately (not on the coalesced interval).
-            await BroadcastPendingAsync();
+            await BroadcastPending();
             return ControlOutcome.Ok(session.Status, generation.Number);
         });
 
-    public Task<ControlOutcome> StopAsync(string? secret) =>
-        RunControlAsync(secret, requiredState: null, async session =>
+    public Task<ControlOutcome> Stop(string? secret) =>
+        RunControl(secret, requiredState: null, async session =>
         {
             var finalGeneration = session.Current.Number;
-            await session.StopAsync();
+            await session.Stop();
             _session = null; // Free the slot for the next first-starter.
-            await PushStatusAsync(GameStatus.NoGame);
+            await PushStatus(GameStatus.NoGame);
             return ControlOutcome.Ok(GameStatus.NoGame, finalGeneration);
         });
 
@@ -120,7 +120,7 @@ public sealed class GameHost
     /// slot empty → 404, bad/missing secret → 403, wrong state → 409 (no-ops rejected). On success
     /// the verb's <paramref name="action"/> performs the transition and produces the outcome.
     /// </summary>
-    private async Task<ControlOutcome> RunControlAsync(
+    private async Task<ControlOutcome> RunControl(
         string? secret,
         GameStatus? requiredState,
         Func<GameSession, Task<ControlOutcome>> action)
@@ -144,7 +144,7 @@ public sealed class GameHost
     /// generation — is what makes subscribe-first reconciliation exact: the next delta an observer
     /// receives chains from this generation, so no delta straddles the snapshot and trips a resync.
     /// </summary>
-    internal async Task<GameSnapshot?> GetSnapshotAsync()
+    internal async Task<GameSnapshot?> GetSnapshot()
     {
         var session = _session;
         if (session is null)
@@ -166,7 +166,7 @@ public sealed class GameHost
     /// Pushes a coalesced net delta since the last broadcast, if the game has advanced. Called both
     /// on the server-wide interval and immediately after a single-step. Safe to call concurrently.
     /// </summary>
-    public async Task BroadcastPendingAsync()
+    public async Task BroadcastPending()
     {
         await _broadcastGate.WaitAsync();
         try
@@ -209,7 +209,7 @@ public sealed class GameHost
         }
     }
 
-    private async Task SetBroadcastBaselineAsync(GameSession session, IReadOnlyCollection<Cell> seed)
+    private async Task SetBroadcastBaseline(GameSession session, IReadOnlyCollection<Cell> seed)
     {
         await _broadcastGate.WaitAsync();
         try
@@ -231,7 +231,7 @@ public sealed class GameHost
         _lastBroadcastLive = [];
     }
 
-    private async Task PushStatusAsync(GameStatus status) => await _hub.Clients.All.ReceiveStatus(status);
+    private async Task PushStatus(GameStatus status) => await _hub.Clients.All.ReceiveStatus(status);
 
     /// <summary>
     /// Enforces the existence → auth order. On failure sets <paramref name="error"/> to the

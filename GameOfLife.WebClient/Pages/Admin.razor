@@ -24,7 +24,7 @@
                     <h1 class="admin-title">Create a game</h1>
                 </Header>
                 <Settings>
-                    <button type="button" class="primary admin-create-btn" disabled="@(!CanCreate)" @onclick="CreateAsync">
+                    <button type="button" class="primary admin-create-btn" disabled="@(!CanCreate)" @onclick="Create">
                         @(_autoStart ? "Create & start" : "Create game")
                     </button>
 
@@ -85,11 +85,11 @@
         <GameStage Title="Admin control">
             <Controls>
                 <div class="admin-controls">
-                    <button type="button" class="primary" disabled="@(!CanStart)" @onclick="() => ControlAsync(Store.StartAsync)">Start</button>
-                    <button type="button" class="primary" disabled="@(!CanPause)" @onclick="() => ControlAsync(Store.PauseAsync)">Pause</button>
-                    <button type="button" class="primary" disabled="@(!CanResume)" @onclick="() => ControlAsync(Store.ResumeAsync)">Resume</button>
-                    <button type="button" class="primary" disabled="@(!CanStep)" @onclick="() => ControlAsync(Store.StepAsync)">Step</button>
-                    <button type="button" class="primary" disabled="@(!CanStop)" @onclick="() => ControlAsync(Store.StopAsync)">Stop</button>
+                    <button type="button" class="primary" disabled="@(!CanStart)" @onclick="() => Control(Store.Start)">Start</button>
+                    <button type="button" class="primary" disabled="@(!CanPause)" @onclick="() => Control(Store.Pause)">Pause</button>
+                    <button type="button" class="primary" disabled="@(!CanResume)" @onclick="() => Control(Store.Resume)">Resume</button>
+                    <button type="button" class="primary" disabled="@(!CanStep)" @onclick="() => Control(Store.Step)">Step</button>
+                    <button type="button" class="primary" disabled="@(!CanStop)" @onclick="() => Control(Store.Stop)">Stop</button>
                 </div>
 
                 @if (_controlError is not null)
@@ -157,11 +157,11 @@
         if (Store.Status is not GameStatus.NoGame && Store.HasAdminSecret && !_attached)
         {
             _attached = true;
-            await Store.AttachAsync();
+            await Store.Attach();
         }
     }
 
-    private async Task CreateAsync()
+    private async Task Create()
     {
         _busy = true;
         _alreadyExists = false;
@@ -170,7 +170,7 @@
         var origin = new Cell(ulong.Parse(_originX), ulong.Parse(_originY));
         var request = new CreateGameRequest(_seed!.GetSeedBase64(), origin, RuleString, _tickRate, _autoStart);
 
-        var result = await Store.CreateGameAsync(request);
+        var result = await Store.CreateGame(request);
         result.Match(
             _ => { /* store set status + secret → the gate flips to the control panel */ },
             error =>
@@ -197,7 +197,7 @@
         _busy = false;
     }
 
-    private async Task ControlAsync(Func<CancellationToken, Task<Result<ControlOutcome, GameError>>> op)
+    private async Task Control(Func<CancellationToken, Task<Result<ControlOutcome, GameError>>> op)
     {
         _busy = true;
         _controlError = null;

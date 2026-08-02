@@ -33,7 +33,7 @@ public sealed class LocalStorageAdminSecretStore : IAdminSecretStore
 
     public event Action? Changed;
 
-    public async Task SetAsync(string secret)
+    public async Task Set(string secret)
     {
         await _js.InvokeVoidAsync("localStorage.setItem", Key, secret);
         _current = secret;
@@ -41,7 +41,7 @@ public sealed class LocalStorageAdminSecretStore : IAdminSecretStore
         Changed?.Invoke();
     }
 
-    public async Task ClearAsync()
+    public async Task Clear()
     {
         await _js.InvokeVoidAsync("localStorage.removeItem", Key);
         _current = null;

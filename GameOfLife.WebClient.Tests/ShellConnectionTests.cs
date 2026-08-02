@@ -23,14 +23,14 @@ public class ShellConnectionTests
     }
 
     [Fact]
-    public void Starts_in_connecting()
+    public void Given_a_new_shell_When_it_is_built_Then_it_starts_in_connecting()
     {
         var (shell, _, _, _) = Build();
         Assert.Equal(ShellPhase.Connecting, shell.Phase);
     }
 
     [Fact]
-    public async Task Initialize_reaches_ready_when_a_game_already_runs()
+    public async Task Given_a_game_already_running_When_the_shell_initializes_Then_it_reaches_ready()
     {
         var (shell, api, stream, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Ok(Snap(GameStatus.Running, gen: 7)));
@@ -38,7 +38,7 @@ public class ShellConnectionTests
         var changes = new List<ShellPhase>();
         shell.Changed += () => changes.Add(shell.Phase);
 
-        await shell.InitializeAsync();
+        await shell.Initialize();
 
         Assert.True(stream.Connected);
         Assert.Equal(ShellPhase.Ready, shell.Phase);
@@ -47,33 +47,33 @@ public class ShellConnectionTests
     }
 
     [Fact]
-    public async Task NoGame_is_a_resolved_status_so_phase_is_ready()
+    public async Task Given_a_NoGame_status_When_the_shell_initializes_Then_the_phase_is_ready()
     {
         var (shell, api, _, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
 
-        await shell.InitializeAsync();
+        await shell.Initialize();
 
         Assert.Equal(ShellPhase.Ready, shell.Phase);
     }
 
     [Fact]
-    public async Task Transport_failure_on_status_lands_disconnected()
+    public async Task Given_a_transport_failure_on_status_When_the_shell_initializes_Then_it_lands_disconnected()
     {
         var (shell, api, _, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.Transport("boom")));
 
-        await shell.InitializeAsync();
+        await shell.Initialize();
 
         Assert.Equal(ShellPhase.Disconnected, shell.Phase);
     }
 
     [Fact]
-    public async Task Reconnecting_push_shows_reconnecting_then_recovers_to_ready()
+    public async Task Given_a_ready_shell_When_the_transport_drops_and_recovers_Then_it_shows_reconnecting_then_returns_to_ready()
     {
         var (shell, api, stream, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
-        await shell.InitializeAsync();
+        await shell.Initialize();
         Assert.Equal(ShellPhase.Ready, shell.Phase);
 
         // The transport drops...
@@ -87,11 +87,11 @@ public class ShellConnectionTests
     }
 
     [Fact]
-    public async Task Closed_push_lands_disconnected()
+    public async Task Given_a_ready_shell_When_a_closed_connection_state_is_pushed_Then_it_lands_disconnected()
     {
         var (shell, api, stream, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
-        await shell.InitializeAsync();
+        await shell.Initialize();
 
         stream.PushConnectionState(StreamConnectionState.Closed);
 
@@ -99,40 +99,40 @@ public class ShellConnectionTests
     }
 
     [Fact]
-    public async Task Retry_from_disconnected_reaches_ready()
+    public async Task Given_a_disconnected_shell_When_retried_and_the_server_is_back_Then_it_reaches_ready()
     {
         var (shell, api, _, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.Transport("down")));
-        await shell.InitializeAsync();
+        await shell.Initialize();
         Assert.Equal(ShellPhase.Disconnected, shell.Phase);
 
         // Server is back — the next status fetch resolves.
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
-        await shell.RetryAsync();
+        await shell.Retry();
 
         Assert.Equal(ShellPhase.Ready, shell.Phase);
     }
 
     [Fact]
-    public async Task Initialize_when_the_stream_cannot_connect_lands_disconnected()
+    public async Task Given_a_stream_that_cannot_connect_When_the_shell_initializes_Then_it_lands_disconnected_without_fetching_status()
     {
         var (shell, api, stream, _) = Build();
         stream.ConnectException = new InvalidOperationException("transport unavailable");
         // A status result is enqueued but must never be consulted — the connect fails first.
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
 
-        await shell.InitializeAsync();
+        await shell.Initialize();
 
         Assert.Equal(ShellPhase.Disconnected, shell.Phase);
         Assert.Equal(0, api.SnapshotCalls); // never reached the status fetch
     }
 
     [Fact]
-    public async Task Disposing_the_shell_stops_reacting_to_connection_state()
+    public async Task Given_a_disposed_shell_When_a_connection_state_change_is_pushed_Then_it_stops_reacting()
     {
         var (shell, api, stream, _) = Build();
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
-        await shell.InitializeAsync();
+        await shell.Initialize();
         Assert.Equal(ShellPhase.Ready, shell.Phase);
 
         shell.Dispose();
@@ -143,12 +143,12 @@ public class ShellConnectionTests
     }
 
     [Fact]
-    public async Task Reconnect_recovery_catches_a_game_created_while_away()
+    public async Task Given_a_game_created_while_disconnected_When_the_shell_reconnects_Then_the_recovery_re_fetch_catches_it()
     {
         var (shell, api, stream, _) = Build();
         // Connected pre-game.
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
-        await shell.InitializeAsync();
+        await shell.Initialize();
 
         // While disconnected, a game was created; on recovery the re-fetch sees it.
         api.EnqueueSnapshot(Result<Snapshot, GameError>.Ok(Snap(GameStatus.Running, gen: 3)));

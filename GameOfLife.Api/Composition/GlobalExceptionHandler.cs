@@ -20,7 +20,7 @@ internal static class GlobalExceptionHandler
     /// is never touched, so no detail can reach the body. <c>WriteAsJsonAsync</c> applies the
     /// application-wide HTTP JSON options (camelCase, string enums) and writes <c>application/json</c>.
     /// </summary>
-    public static async Task WriteRedactedResponseAsync(HttpContext httpContext)
+    public static async Task WriteRedactedResponse(HttpContext httpContext)
     {
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await httpContext.Response.WriteAsJsonAsync(

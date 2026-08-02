@@ -21,7 +21,7 @@ public class GameEngineTheoryTests
     [InlineData(6, false)]
     [InlineData(7, false)]
     [InlineData(8, false)]
-    public void Birth_of_a_dead_cell_follows_B3(int neighbours, bool expectedBorn)
+    public void Given_a_dead_cell_with_n_live_neighbours_When_the_engine_advances_Then_birth_follows_B3(int neighbours, bool expectedBorn)
     {
         var center = new Cell(1000, 1000);
         var seed = FirstNeighbours(center, neighbours);
@@ -47,7 +47,7 @@ public class GameEngineTheoryTests
     [InlineData(6, false)]
     [InlineData(7, false)]
     [InlineData(8, false)]
-    public void Survival_of_a_live_cell_follows_S23(int neighbours, bool expectedSurvives)
+    public void Given_a_live_cell_with_n_live_neighbours_When_the_engine_advances_Then_survival_follows_S23(int neighbours, bool expectedSurvives)
     {
         var center = new Cell(2000, 2000);
         var seed = new List<Cell> { center };
@@ -62,7 +62,7 @@ public class GameEngineTheoryTests
     }
 
     [Fact]
-    public void A_block_still_life_is_unchanged_and_reports_no_delta()
+    public void Given_a_block_still_life_When_the_engine_advances_Then_it_is_unchanged_and_reports_no_delta()
     {
         // 2x2 block is stable under B3/S23.
         var block = new[]
@@ -80,7 +80,7 @@ public class GameEngineTheoryTests
     }
 
     [Fact]
-    public void A_blinker_straddling_the_x_seam_wraps_correctly()
+    public void Given_a_blinker_straddling_the_x_seam_When_the_engine_advances_Then_it_wraps_correctly()
     {
         // Horizontal blinker centred on x == 0, so it straddles the 2^64 seam:
         // cells at x = MaxValue, 0, 1 (all y = 10).
@@ -106,7 +106,7 @@ public class GameEngineTheoryTests
     }
 
     [Fact]
-    public void A_block_straddling_the_corner_where_both_axes_wrap_is_stable()
+    public void Given_a_block_straddling_the_corner_where_both_axes_wrap_When_the_engine_advances_Then_it_is_stable()
     {
         // 2x2 block spanning (MaxValue,MaxValue) — wraps on BOTH axes to (0,0).
         var m = ulong.MaxValue;
@@ -123,7 +123,7 @@ public class GameEngineTheoryTests
     }
 
     [Fact]
-    public void An_all_dead_world_stays_empty()
+    public void Given_an_all_dead_world_When_the_engine_advances_Then_it_stays_empty()
     {
         var engine = new GameEngine([], Rule.Parse("B3/S23"));
 

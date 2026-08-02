@@ -39,7 +39,7 @@ public class HttpGameApiTests
     }
 
     [Fact]
-    public async Task CreateGame_success_parses_CreatedGame_and_sends_decimal_string_origin()
+    public async Task Given_a_valid_create_request_When_the_backend_succeeds_Then_the_CreatedGame_is_parsed_and_the_origin_is_sent_as_decimal_strings()
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.Created, """
@@ -47,7 +47,7 @@ public class HttpGameApiTests
              "hubUrl":"/hubs/game","snapshotUrl":"/snapshot"}
             """);
 
-        var result = await api.CreateGameAsync(ValidCreate());
+        var result = await api.CreateGame(ValidCreate());
 
         Assert.True(result.IsSuccess);
         Assert.Equal("the-secret", result.Value.Secret);
@@ -67,20 +67,20 @@ public class HttpGameApiTests
     }
 
     [Fact]
-    public async Task CreateGame_GAME_ALREADY_EXISTS_maps_to_AlreadyExists_with_server_message()
+    public async Task Given_a_GAME_ALREADY_EXISTS_envelope_When_creating_a_game_Then_it_maps_to_AlreadyExists_with_the_server_message()
     {
         var (api, handler, _) = NewApi();
         const string message = "A game already exists. Only one game can run at a time.";
         handler.Respond(HttpStatusCode.Conflict, Envelope(ErrorCodes.GameAlreadyExists, message));
 
-        var result = await api.CreateGameAsync(ValidCreate());
+        var result = await api.CreateGame(ValidCreate());
 
         var error = Assert.IsType<GameError.AlreadyExists>(result.Error);
         Assert.Equal(message, error.Message);
     }
 
     [Fact]
-    public async Task CreateGame_VALIDATION_FAILED_maps_to_ValidationRejected_with_field_errors()
+    public async Task Given_a_VALIDATION_FAILED_envelope_When_creating_a_game_Then_it_maps_to_ValidationRejected_with_field_errors()
     {
         var (api, handler, _) = NewApi();
         const string message = "Some of the values you provided aren't valid.";
@@ -88,7 +88,7 @@ public class HttpGameApiTests
             ErrorCodes.ValidationFailed, message,
             new FieldError("tickRate", "The tick rate must be between 0.1 and 200 generations per second.")));
 
-        var result = await api.CreateGameAsync(ValidCreate());
+        var result = await api.CreateGame(ValidCreate());
 
         var rejected = Assert.IsType<GameError.ValidationRejected>(result.Error);
         Assert.Equal(message, rejected.Message);
@@ -103,13 +103,13 @@ public class HttpGameApiTests
     [InlineData(null, "B3/S23", 201.0)]               // tick-rate above range
     [InlineData(null, "B3/S23", double.NaN)]          // NaN tick-rate rejected
     [InlineData(null, "B33/S23", 5.0)]                // repeated digit in a group
-    public async Task CreateGame_invalid_request_short_circuits_without_calling_backend(
+    public async Task Given_an_invalid_create_request_When_creating_a_game_Then_it_short_circuits_without_calling_the_backend(
         string? seed, string rule, double tickRate)
     {
         var (api, handler, _) = NewApi();
         var request = new CreateGameRequest(seed ?? ValidSeed, new Cell(0, 0), rule, tickRate, AutoStart: true);
 
-        var result = await api.CreateGameAsync(request);
+        var result = await api.CreateGame(request);
 
         Assert.IsType<GameError.ValidationRejected>(result.Error);
         Assert.Equal(0, handler.CallCount); // never hit the wire
@@ -118,20 +118,20 @@ public class HttpGameApiTests
     [Theory]
     [InlineData("resume", "/resume")]
     [InlineData("step", "/step")]
-    public async Task Control_verb_hits_its_own_route(string _, string expectedPath)
+    public async Task Given_a_control_verb_When_it_is_invoked_Then_it_hits_its_own_route(string _, string expectedPath)
     {
         var (api, handler, _2) = NewApi();
         handler.Respond(HttpStatusCode.OK, """{"status":"Running","generation":1}""");
 
         // Cover the resume/step delegates specifically (start/stop/pause are covered elsewhere).
-        var result = expectedPath == "/resume" ? await api.ResumeAsync() : await api.StepAsync();
+        var result = expectedPath == "/resume" ? await api.Resume() : await api.Step();
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expectedPath, handler.LastPath);
     }
 
     [Fact]
-    public async Task A_cancelled_token_propagates_the_cancellation_rather_than_a_transport_error()
+    public async Task Given_a_cancelled_token_When_fetching_a_snapshot_Then_the_cancellation_propagates_rather_than_a_transport_error()
     {
         var (api, _, _2) = NewApi();
         using var cts = new CancellationTokenSource();
@@ -139,17 +139,17 @@ public class HttpGameApiTests
 
         // Cancellation via the caller's token must surface as OperationCanceledException, never be
         // swallowed into a GameError.Transport result.
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => api.GetSnapshotAsync(cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => api.GetSnapshot(cts.Token));
     }
 
     [Fact]
-    public async Task Control_success_parses_outcome_and_attaches_admin_secret_header()
+    public async Task Given_a_stored_admin_secret_When_a_control_call_succeeds_Then_the_outcome_is_parsed_and_the_admin_secret_header_is_attached()
     {
         var (api, handler, store) = NewApi();
-        await store.SetAsync("secret-123");
+        await store.Set("secret-123");
         handler.Respond(HttpStatusCode.OK, """{"status":"Running","generation":42}""");
 
-        var result = await api.StartAsync();
+        var result = await api.Start();
 
         Assert.True(result.IsSuccess);
         Assert.Equal(GameStatus.Running, result.Value.Status);
@@ -159,12 +159,12 @@ public class HttpGameApiTests
     }
 
     [Fact]
-    public async Task Control_without_secret_sends_no_admin_header()
+    public async Task Given_no_stored_admin_secret_When_a_control_call_is_made_Then_no_admin_header_is_sent()
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.Forbidden, Envelope(ErrorCodes.InvalidAdminSecret, "Your admin access isn't valid."));
 
-        var result = await api.PauseAsync();
+        var result = await api.Pause();
 
         Assert.IsType<GameError.Forbidden>(result.Error);
         Assert.Null(handler.LastAdminSecret);
@@ -178,25 +178,25 @@ public class HttpGameApiTests
     [InlineData(ErrorCodes.ValidationFailed, typeof(GameError.ValidationRejected))]
     [InlineData(ErrorCodes.InternalError, typeof(GameError.Transport))]
     [InlineData(ErrorCodes.MalformedRequestBody, typeof(GameError.Transport))]
-    public async Task Error_code_maps_to_arm_and_surfaces_server_message(string code, Type expectedError)
+    public async Task Given_an_error_envelope_code_When_a_control_call_fails_Then_it_maps_to_the_matching_error_and_surfaces_the_server_message(string code, Type expectedError)
     {
         var (api, handler, _) = NewApi();
         // The client branches on the envelope code, not the HTTP status — a fixed non-2xx status here.
         handler.Respond(HttpStatusCode.BadRequest, Envelope(code, "the server's message"));
 
-        var result = await api.StopAsync();
+        var result = await api.Stop();
 
         Assert.IsType(expectedError, result.Error);
         Assert.Equal("the server's message", result.Error.Message);
     }
 
     [Fact]
-    public async Task Unknown_code_falls_back_to_Transport_but_shows_the_server_message()
+    public async Task Given_an_unknown_error_code_When_a_control_call_fails_Then_it_falls_back_to_Transport_but_shows_the_server_message()
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.BadRequest, Envelope("SOME_FUTURE_CODE", "a message from a newer server"));
 
-        var result = await api.StopAsync();
+        var result = await api.Stop();
 
         var transport = Assert.IsType<GameError.Transport>(result.Error);
         Assert.Equal("a message from a newer server", transport.Message);
@@ -206,31 +206,31 @@ public class HttpGameApiTests
     [InlineData("")]                 // no body at all
     [InlineData("not json")]         // unparseable body
     [InlineData("\"a bare string\"")] // valid JSON but not the envelope
-    public async Task Absent_or_unparseable_body_falls_back_to_the_client_transport_string(string body)
+    public async Task Given_an_absent_or_unparseable_body_When_a_control_call_fails_Then_it_falls_back_to_the_client_transport_string(string body)
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.BadRequest, body);
 
-        var result = await api.StopAsync();
+        var result = await api.Stop();
 
         var transport = Assert.IsType<GameError.Transport>(result.Error);
         Assert.Equal(TransportFallback, transport.Message);
     }
 
     [Fact]
-    public async Task Empty_message_envelope_falls_back_to_the_client_transport_string()
+    public async Task Given_an_envelope_with_an_empty_message_When_a_control_call_fails_Then_it_falls_back_to_the_client_transport_string()
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.NotFound, Envelope(ErrorCodes.GameNotFound, ""));
 
-        var result = await api.StopAsync();
+        var result = await api.Stop();
 
         var transport = Assert.IsType<GameError.Transport>(result.Error);
         Assert.Equal(TransportFallback, transport.Message);
     }
 
     [Fact]
-    public async Task GetSnapshot_success_parses_decimal_string_cells()
+    public async Task Given_a_successful_snapshot_response_When_fetching_a_snapshot_Then_the_decimal_string_cells_are_parsed()
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.OK, """
@@ -238,7 +238,7 @@ public class HttpGameApiTests
              "cells":[{"x":"18446744073709551615","y":"0"},{"x":"1","y":"2"}]}
             """);
 
-        var result = await api.GetSnapshotAsync();
+        var result = await api.GetSnapshot();
 
         Assert.True(result.IsSuccess);
         Assert.Equal(7, result.Value.Gen);
@@ -249,24 +249,24 @@ public class HttpGameApiTests
     }
 
     [Fact]
-    public async Task GetSnapshot_GAME_NOT_FOUND_maps_to_NoGame_with_server_message()
+    public async Task Given_a_GAME_NOT_FOUND_envelope_When_fetching_a_snapshot_Then_it_maps_to_NoGame_with_the_server_message()
     {
         var (api, handler, _) = NewApi();
         handler.Respond(HttpStatusCode.NotFound, Envelope(ErrorCodes.GameNotFound, "There's no game right now."));
 
-        var result = await api.GetSnapshotAsync();
+        var result = await api.GetSnapshot();
 
         var error = Assert.IsType<GameError.NoGame>(result.Error);
         Assert.Equal("There's no game right now.", error.Message);
     }
 
     [Fact]
-    public async Task Network_failure_maps_to_Transport_with_the_client_fallback_string()
+    public async Task Given_a_network_failure_When_fetching_a_snapshot_Then_it_maps_to_Transport_with_the_client_fallback_string()
     {
         var (api, handler, _) = NewApi();
         handler.Throw(new HttpRequestException("connection refused"));
 
-        var result = await api.GetSnapshotAsync();
+        var result = await api.GetSnapshot();
 
         var transport = Assert.IsType<GameError.Transport>(result.Error);
         // A genuine network failure has no body, so the one client-owned string is shown.

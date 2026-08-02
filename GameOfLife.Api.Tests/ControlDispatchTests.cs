@@ -13,12 +13,12 @@ namespace GameOfLife.Api.Tests;
 public class ControlDispatchTests
 {
     [Fact]
-    public async Task An_unknown_control_result_maps_to_a_500()
+    public async Task Given_an_out_of_contract_control_result_When_the_dispatch_runs_Then_it_maps_to_a_500()
     {
         var context = new DefaultHttpContext();
 
         // Feed the edge an outcome outside the ControlResult contract — the switch's default arm.
-        var result = await ControlDispatch.RunAsync(
+        var result = await ControlDispatch.Run(
             _ => Task.FromResult(new ControlOutcome((ControlResult)999, GameStatus.NoGame, 0)),
             context);
 

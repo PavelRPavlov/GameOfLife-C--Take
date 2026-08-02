@@ -46,9 +46,9 @@ internal sealed class GameSession
     public void Resume() => StartLoop(GameStatus.Running);
 
     /// <summary>Running → Paused: freeze the loop, awaiting its shutdown so no further tick races a step.</summary>
-    public async Task PauseAsync()
+    public async Task Pause()
     {
-        await StopLoopAsync();
+        await StopLoop();
         Status = GameStatus.Paused;
     }
 
@@ -56,16 +56,16 @@ internal sealed class GameSession
     public Generation Step() => _engine.Advance();
 
     /// <summary>Any state → torn down: stop the loop and await its shutdown.</summary>
-    public Task StopAsync() => StopLoopAsync();
+    public Task Stop() => StopLoop();
 
     private void StartLoop(GameStatus runningStatus)
     {
         Status = runningStatus;
         _loopCts = new CancellationTokenSource();
-        _loopTask = RunAsync(_loopCts.Token);
+        _loopTask = Run(_loopCts.Token);
     }
 
-    private async Task RunAsync(CancellationToken cancellationToken)
+    private async Task Run(CancellationToken cancellationToken)
     {
         try
         {
@@ -79,7 +79,7 @@ internal sealed class GameSession
         }
     }
 
-    private async Task StopLoopAsync()
+    private async Task StopLoop()
     {
         if (_loopCts is null) return;
 

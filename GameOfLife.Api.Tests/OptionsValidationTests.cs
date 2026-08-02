@@ -13,7 +13,7 @@ public class OptionsValidationTests
     private static readonly CorsOptionsValidator CorsValidator = new();
 
     [Fact]
-    public void Valid_game_options_pass()
+    public void Given_valid_game_options_When_validated_Then_validation_succeeds()
     {
         var result = GameValidator.Validate(null, new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100 });
 
@@ -25,7 +25,7 @@ public class OptionsValidationTests
     [InlineData("b3/s23")]  // lower case
     [InlineData("B3S23")]   // missing slash
     [InlineData("")]        // empty
-    public void Unparseable_default_rule_fails(string rule)
+    public void Given_an_unparseable_default_rule_When_game_options_are_validated_Then_validation_fails(string rule)
     {
         var result = GameValidator.Validate(null, new GameOptions { DefaultRule = rule, BroadcastIntervalMs = 100 });
 
@@ -35,7 +35,7 @@ public class OptionsValidationTests
     [Theory]
     [InlineData(0)]
     [InlineData(-5)]
-    public void Non_positive_broadcast_interval_fails(int intervalMs)
+    public void Given_a_non_positive_broadcast_interval_When_game_options_are_validated_Then_validation_fails(int intervalMs)
     {
         var result = GameValidator.Validate(null, new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = intervalMs });
 
@@ -51,7 +51,7 @@ public class OptionsValidationTests
     [InlineData("ushort")]
     [InlineData("Byte")]
     [InlineData("byte")]
-    public void Wrap_capable_coordinate_type_passes(string coordinateType)
+    public void Given_a_wrap_capable_coordinate_type_When_game_options_are_validated_Then_validation_succeeds(string coordinateType)
     {
         var result = GameValidator.Validate(null,
             new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, CoordinateType = coordinateType });
@@ -69,7 +69,7 @@ public class OptionsValidationTests
     [InlineData("string")]   // not a number
     [InlineData("")]         // empty
     [InlineData("nonsense")] // unknown
-    public void Non_wrap_capable_coordinate_type_fails(string coordinateType)
+    public void Given_a_non_wrap_capable_coordinate_type_When_game_options_are_validated_Then_validation_fails(string coordinateType)
     {
         var result = GameValidator.Validate(null,
             new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, CoordinateType = coordinateType });
@@ -78,7 +78,7 @@ public class OptionsValidationTests
     }
 
     [Fact]
-    public void Empty_allowed_origins_fails()
+    public void Given_empty_allowed_origins_When_cors_options_are_validated_Then_validation_fails()
     {
         var result = CorsValidator.Validate(null, new CorsOptions { AllowedOrigins = [] });
 
@@ -86,7 +86,7 @@ public class OptionsValidationTests
     }
 
     [Fact]
-    public void Blank_allowed_origin_fails()
+    public void Given_a_blank_allowed_origin_When_cors_options_are_validated_Then_validation_fails()
     {
         var result = CorsValidator.Validate(null, new CorsOptions { AllowedOrigins = ["https://ok.test", "  "] });
 
@@ -94,7 +94,7 @@ public class OptionsValidationTests
     }
 
     [Fact]
-    public void Valid_allowed_origins_pass()
+    public void Given_valid_allowed_origins_When_cors_options_are_validated_Then_validation_succeeds()
     {
         var result = CorsValidator.Validate(null, new CorsOptions { AllowedOrigins = ["https://ok.test"] });
 

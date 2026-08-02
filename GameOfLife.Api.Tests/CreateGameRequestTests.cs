@@ -15,7 +15,7 @@ public class CreateGameRequestTests
     private static readonly GameOptions Options = new() { DefaultRule = "B3/S23", BroadcastIntervalMs = 50 };
 
     [Fact]
-    public void ToParameters_projects_a_validated_request_into_domain_values()
+    public void Given_a_validated_create_request_When_ToParameters_is_called_Then_it_projects_into_domain_values()
     {
         var request = new CreateGameRequest
         {
@@ -35,7 +35,7 @@ public class CreateGameRequestTests
     }
 
     [Fact]
-    public void ToParameters_falls_back_to_the_configured_default_rule_when_rule_is_omitted()
+    public void Given_a_create_request_with_no_rule_When_ToParameters_is_called_Then_it_falls_back_to_the_configured_default_rule()
     {
         var request = new CreateGameRequest
         {
@@ -52,7 +52,7 @@ public class CreateGameRequestTests
     }
 
     [Fact]
-    public void ToParameters_throws_when_the_seed_is_undecodable()
+    public void Given_a_create_request_with_an_undecodable_seed_When_ToParameters_is_called_Then_it_throws()
     {
         var request = new CreateGameRequest
         {
@@ -67,7 +67,7 @@ public class CreateGameRequestTests
     }
 
     [Fact]
-    public void ToParameters_throws_when_the_origin_is_unparseable()
+    public void Given_a_create_request_with_an_unparseable_origin_When_ToParameters_is_called_Then_it_throws()
     {
         var request = new CreateGameRequest
         {

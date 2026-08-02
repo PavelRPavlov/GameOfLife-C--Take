@@ -15,7 +15,7 @@ public static class ErrorResponses
     /// Reads and shape-checks the error envelope: the body is <c>application/json</c>, and the parsed
     /// envelope has a non-empty code/message and a non-null errors list. Optionally asserts the code.
     /// </summary>
-    public static async Task<ErrorEnvelope> ReadErrorAsync(this HttpResponseMessage response, string? expectedCode = null)
+    public static async Task<ErrorEnvelope> ReadError(this HttpResponseMessage response, string? expectedCode = null)
     {
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
 
@@ -36,7 +36,7 @@ public static class ErrorResponses
     /// Parses the raw response body as a JSON object and returns its top-level property names, so a test
     /// can assert the exact camelCase wire keys and the absence of <c>traceId</c>/<c>status</c>.
     /// </summary>
-    public static async Task<IReadOnlyCollection<string>> ReadJsonPropertyNamesAsync(this HttpResponseMessage response)
+    public static async Task<IReadOnlyCollection<string>> ReadJsonPropertyNames(this HttpResponseMessage response)
     {
         var raw = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(raw);

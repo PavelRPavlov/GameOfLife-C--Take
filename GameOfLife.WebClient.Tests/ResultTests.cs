@@ -5,7 +5,7 @@ namespace GameOfLife.WebClient.Tests;
 public sealed class ResultTests
 {
     [Fact]
-    public void Ok_carries_the_value_and_matches_the_success_arm()
+    public void Given_an_Ok_result_When_accessed_and_matched_Then_it_carries_the_value_and_runs_the_success_arm()
     {
         var result = Result<int, GameError>.Ok(42);
 
@@ -15,7 +15,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Err_carries_the_error_and_matches_the_failure_arm()
+    public void Given_an_Err_result_When_accessed_and_matched_Then_it_carries_the_error_and_runs_the_failure_arm()
     {
         var result = Result<int, GameError>.Err(new GameError.NoGame("no game"));
 
@@ -25,14 +25,14 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Value_throws_on_a_failure_and_Error_throws_on_a_success()
+    public void Given_a_mismatched_result_When_accessing_Value_on_a_failure_or_Error_on_a_success_Then_it_throws()
     {
         Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Err(new GameError.NoGame("no game")).Value);
         Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Ok(1).Error);
     }
 
     [Fact]
-    public void Map_transforms_success_and_passes_failure_through()
+    public void Given_a_result_When_mapped_Then_success_is_transformed_and_failure_passes_through()
     {
         Assert.Equal(10, Result<int, GameError>.Ok(5).Map(v => v * 2).Value);
         Assert.IsType<GameError.Forbidden>(
@@ -40,7 +40,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Bind_chains_success_and_short_circuits_failure()
+    public void Given_a_result_When_bound_Then_success_chains_and_failure_short_circuits()
     {
         var chained = Result<int, GameError>.Ok(5).Bind(v => Result<string, GameError>.Ok($"n{v}"));
         Assert.Equal("n5", chained.Value);
@@ -51,7 +51,7 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void Void_Match_runs_the_matching_side_effect_for_each_case()
+    public void Given_a_result_When_matched_with_side_effects_Then_the_matching_action_runs_for_each_case()
     {
         string? ranWith = null;
 

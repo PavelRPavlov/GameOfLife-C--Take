@@ -26,10 +26,10 @@ public sealed class ObserverDriver(ApiTestContext ctx)
     /// <summary>Opens the observer's SignalR connection over the in-memory world.</summary>
     public async Task Connect()
     {
-        _observer = await ctx.ConnectObserverAsync();
+        _observer = await ctx.ConnectObserver();
     }
 
     /// <summary>Waits until the given status has been observed (or times out); returns whether it was seen.</summary>
     public Task<bool> WaitForStatus(GameStatus status) =>
-        Observer.WaitForAsync(o => o.Statuses.Contains(status));
+        Observer.WaitFor(o => o.Statuses.Contains(status));
 }

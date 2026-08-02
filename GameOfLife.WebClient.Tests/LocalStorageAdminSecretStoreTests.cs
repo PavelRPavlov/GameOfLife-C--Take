@@ -12,7 +12,7 @@ namespace GameOfLife.WebClient.Tests;
 public sealed class LocalStorageAdminSecretStoreTests
 {
     [Fact]
-    public void Current_hydrates_from_localStorage_on_first_read()
+    public void Given_a_secret_in_localStorage_When_Current_is_read_the_first_time_Then_it_hydrates_once_and_caches()
     {
         var js = new FakeInProcessJsRuntime();
         js.Storage["gol.adminSecret"] = "persisted-secret";
@@ -26,7 +26,7 @@ public sealed class LocalStorageAdminSecretStoreTests
     }
 
     [Fact]
-    public void Current_is_null_when_localStorage_is_empty()
+    public void Given_empty_localStorage_When_Current_is_read_Then_it_is_null()
     {
         var store = new LocalStorageAdminSecretStore(new FakeInProcessJsRuntime());
 
@@ -35,14 +35,14 @@ public sealed class LocalStorageAdminSecretStoreTests
     }
 
     [Fact]
-    public async Task SetAsync_writes_through_caches_and_raises_Changed()
+    public async Task Given_a_store_When_SetAsync_is_called_Then_it_writes_through_caches_and_raises_Changed()
     {
         var js = new FakeInProcessJsRuntime();
         var store = new LocalStorageAdminSecretStore(js);
         var changes = 0;
         store.Changed += () => changes++;
 
-        await store.SetAsync("fresh-secret");
+        await store.Set("fresh-secret");
 
         Assert.Equal("fresh-secret", js.Storage["gol.adminSecret"]); // written through to localStorage
         Assert.Equal("fresh-secret", store.Current);                  // cached — no getItem needed
@@ -51,7 +51,7 @@ public sealed class LocalStorageAdminSecretStoreTests
     }
 
     [Fact]
-    public async Task ClearAsync_removes_the_key_caches_null_and_raises_Changed()
+    public async Task Given_a_stored_secret_When_ClearAsync_is_called_Then_it_removes_the_key_caches_null_and_raises_Changed()
     {
         var js = new FakeInProcessJsRuntime();
         js.Storage["gol.adminSecret"] = "to-be-cleared";
@@ -59,7 +59,7 @@ public sealed class LocalStorageAdminSecretStoreTests
         var changes = 0;
         store.Changed += () => changes++;
 
-        await store.ClearAsync();
+        await store.Clear();
 
         Assert.False(js.Storage.ContainsKey("gol.adminSecret")); // removed from localStorage
         Assert.False(store.HasSecret);
@@ -68,7 +68,7 @@ public sealed class LocalStorageAdminSecretStoreTests
     }
 
     [Fact]
-    public void Current_stays_null_when_the_runtime_is_not_in_process()
+    public void Given_a_runtime_that_is_not_in_process_When_Current_is_read_Then_it_stays_null()
     {
         // A non-in-process runtime (e.g. prerender): the synchronous read is skipped, so nothing hydrates.
         var store = new LocalStorageAdminSecretStore(new FakeAsyncOnlyJsRuntime());

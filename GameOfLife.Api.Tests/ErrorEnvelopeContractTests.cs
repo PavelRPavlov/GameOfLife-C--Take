@@ -12,10 +12,10 @@ namespace GameOfLife.Api.Tests;
 public class ErrorEnvelopeContractTests
 {
     [Fact]
-    public async Task Every_failure_body_has_exactly_the_camelCase_envelope_keys()
+    public async Task Given_failing_requests_across_the_status_range_When_the_response_body_is_read_Then_it_has_exactly_the_camelCase_envelope_keys()
     {
         await using var ctx = new ApiTestContext();
-        await ctx.CreateGameAsync(); // occupy the slot so a second create conflicts
+        await ctx.CreateGame(); // occupy the slot so a second create conflicts
 
         // A representative sample across the status range: 400 (validation) and 409 (conflict).
         var validation = await ctx.Client.PostAsync("/game", Requests.Json("{}"));
@@ -23,13 +23,13 @@ public class ErrorEnvelopeContractTests
 
         foreach (var response in new[] { validation, conflict })
         {
-            var names = (await response.ReadJsonPropertyNamesAsync()).ToHashSet();
+            var names = (await response.ReadJsonPropertyNames()).ToHashSet();
             Assert.Equal(new HashSet<string> { "code", "message", "errors" }, names);
         }
     }
 
     [Fact]
-    public async Task Validation_error_entries_use_camelCase_field_and_message_keys()
+    public async Task Given_a_validation_failure_When_the_error_entries_are_read_Then_each_uses_camelCase_field_and_message_keys()
     {
         await using var ctx = new ApiTestContext();
 
@@ -48,14 +48,14 @@ public class ErrorEnvelopeContractTests
     }
 
     [Fact]
-    public async Task Not_found_control_failure_has_the_envelope_keys()
+    public async Task Given_a_control_verb_against_no_game_When_the_not_found_failure_is_read_Then_it_has_the_envelope_keys()
     {
         await using var ctx = new ApiTestContext();
 
-        var response = await ctx.ControlAsync("start", secret: null);
+        var response = await ctx.Control("start", secret: null);
 
-        await response.ReadErrorAsync(ErrorCodes.GameNotFound);
-        var names = (await response.ReadJsonPropertyNamesAsync()).ToHashSet();
+        await response.ReadError(ErrorCodes.GameNotFound);
+        var names = (await response.ReadJsonPropertyNames()).ToHashSet();
         Assert.Equal(new HashSet<string> { "code", "message", "errors" }, names);
     }
 }

@@ -7,9 +7,9 @@ namespace GameOfLife.Api.Features.GetSnapshot;
 /// </summary>
 internal static class GetSnapshotEndpoint
 {
-    public static async Task<IResult> HandleAsync(GameHost host)
+    public static async Task<IResult> Handle(GameHost host)
     {
-        var snapshot = await host.GetSnapshotAsync();
+        var snapshot = await host.GetSnapshot();
         return snapshot is null
             ? ErrorResults.Envelope(StatusCodes.Status404NotFound, ErrorCodes.GameNotFound, ErrorMessages.GameNotFound)
             : Results.Ok(new SnapshotResponse(snapshot.Gen, snapshot.Status, snapshot.TickRate, snapshot.Cells));

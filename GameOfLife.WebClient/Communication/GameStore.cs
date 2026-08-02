@@ -82,32 +82,32 @@ public sealed class GameStore : IAsyncDisposable
 
     /// <summary>
     /// Connect the stream for reactive status only, without adopting a cell baseline (the home page's
-    /// pre-observe path). Deltas that arrive before <see cref="AttachAsync"/> are dropped; status pushes
+    /// pre-observe path). Deltas that arrive before <see cref="Attach"/> are dropped; status pushes
     /// update <see cref="Status"/> immediately.
     /// </summary>
-    public async Task ConnectAsync(CancellationToken ct = default)
+    public async Task Connect(CancellationToken ct = default)
     {
         if (_connected) return;
-        await _stream.ConnectAsync(ct);
+        await _stream.Connect(ct);
         _connected = true;
     }
 
     /// <summary>
     /// Seed <see cref="Status"/> and <see cref="Generation"/> from the <em>current</em> server state
     /// without becoming an attached observer — the shell/home startup path. SignalR is push-only and
-    /// <see cref="ConnectAsync"/> only subscribes to <em>future</em> transitions, so a shell that connects
+    /// <see cref="Connect"/> only subscribes to <em>future</em> transitions, so a shell that connects
     /// while a game already sits in <c>Running</c>/<c>Paused</c> would otherwise never learn that (no push
     /// arrives until the next transition) and would wrongly keep the default <see cref="GameStatus.NoGame"/>.
     ///
     /// This does one <c>GET /snapshot</c> and applies <em>only</em> <c>status</c> and <c>gen</c>: it does
     /// not touch the live-cell set nor arm the attach buffer, so it is independent of — and safe alongside —
-    /// <see cref="AttachAsync"/>. <see cref="GameError.NoGame"/> (404) seeds <see cref="GameStatus.NoGame"/>.
+    /// <see cref="Attach"/>. <see cref="GameError.NoGame"/> (404) seeds <see cref="GameStatus.NoGame"/>.
     /// Returns the fetched status on success, or the <see cref="GameError"/> so the caller can distinguish
     /// <see cref="GameError.NoGame"/> from a <see cref="GameError.Transport"/> failure and retry accordingly.
     /// </summary>
-    public async Task<Result<GameStatus, GameError>> RefreshStatusAsync(CancellationToken ct = default)
+    public async Task<Result<GameStatus, GameError>> RefreshStatus(CancellationToken ct = default)
     {
-        var result = await _api.GetSnapshotAsync(ct);
+        var result = await _api.GetSnapshot(ct);
         return result.Match(
             snapshot =>
             {
@@ -128,7 +128,7 @@ public sealed class GameStore : IAsyncDisposable
     /// Buffering is armed <em>before</em> the connection/snapshot so no delta racing the fetch is lost.
     /// Returns the bootstrap snapshot, or the failure (e.g. <see cref="GameError.NoGame"/>).
     /// </summary>
-    public async Task<Result<Snapshot, GameError>> AttachAsync(CancellationToken ct = default)
+    public async Task<Result<Snapshot, GameError>> Attach(CancellationToken ct = default)
     {
         lock (_gate)
         {
@@ -138,36 +138,36 @@ public sealed class GameStore : IAsyncDisposable
 
         if (!_connected)
         {
-            await _stream.ConnectAsync(ct);
+            await _stream.Connect(ct);
             _connected = true;
         }
 
-        var result = await _api.GetSnapshotAsync(ct);
+        var result = await _api.GetSnapshot(ct);
         result.Match(ReconcileToSnapshot, OnBootstrapError);
         return result;
     }
 
     /// <summary>Create a game and, on success, persist the returned admin secret.</summary>
-    public async Task<Result<CreatedGame, GameError>> CreateGameAsync(CreateGameRequest request, CancellationToken ct = default)
+    public async Task<Result<CreatedGame, GameError>> CreateGame(CreateGameRequest request, CancellationToken ct = default)
     {
-        var result = await _api.CreateGameAsync(request, ct);
+        var result = await _api.CreateGame(request, ct);
         if (result.IsSuccess)
         {
             var game = result.Value;
-            await _secretStore.SetAsync(game.Secret);
+            await _secretStore.Set(game.Secret);
             SetStatus(game.Status);
             SetGeneration(game.Generation);
         }
         return result;
     }
 
-    public Task<Result<ControlOutcome, GameError>> StartAsync(CancellationToken ct = default) => ControlAsync(_api.StartAsync, ct);
-    public Task<Result<ControlOutcome, GameError>> StopAsync(CancellationToken ct = default) => ControlAsync(_api.StopAsync, ct);
-    public Task<Result<ControlOutcome, GameError>> PauseAsync(CancellationToken ct = default) => ControlAsync(_api.PauseAsync, ct);
-    public Task<Result<ControlOutcome, GameError>> ResumeAsync(CancellationToken ct = default) => ControlAsync(_api.ResumeAsync, ct);
-    public Task<Result<ControlOutcome, GameError>> StepAsync(CancellationToken ct = default) => ControlAsync(_api.StepAsync, ct);
+    public Task<Result<ControlOutcome, GameError>> Start(CancellationToken ct = default) => Control(_api.Start, ct);
+    public Task<Result<ControlOutcome, GameError>> Stop(CancellationToken ct = default) => Control(_api.Stop, ct);
+    public Task<Result<ControlOutcome, GameError>> Pause(CancellationToken ct = default) => Control(_api.Pause, ct);
+    public Task<Result<ControlOutcome, GameError>> Resume(CancellationToken ct = default) => Control(_api.Resume, ct);
+    public Task<Result<ControlOutcome, GameError>> Step(CancellationToken ct = default) => Control(_api.Step, ct);
 
-    private async Task<Result<ControlOutcome, GameError>> ControlAsync(
+    private async Task<Result<ControlOutcome, GameError>> Control(
         Func<CancellationToken, Task<Result<ControlOutcome, GameError>>> op, CancellationToken ct)
     {
         var result = await op(ct);
@@ -179,7 +179,7 @@ public sealed class GameStore : IAsyncDisposable
         else if (result.Error is GameError.Forbidden)
         {
             // The stored secret is stale — a client that can't authorise is an observer.
-            await _secretStore.ClearAsync();
+            await _secretStore.Clear();
         }
         return result;
     }
@@ -221,12 +221,12 @@ public sealed class GameStore : IAsyncDisposable
             return;
         }
 
-        _ = ResyncAsync();
+        _ = Resync();
     }
 
-    private async Task ResyncAsync()
+    private async Task Resync()
     {
-        var result = await _api.GetSnapshotAsync();
+        var result = await _api.GetSnapshot();
         result.Match(ReconcileToSnapshot, OnBootstrapError);
     }
 

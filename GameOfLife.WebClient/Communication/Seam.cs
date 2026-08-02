@@ -8,13 +8,13 @@ namespace GameOfLife.WebClient.Communication;
 /// </summary>
 public interface IGameApi
 {
-    Task<Result<CreatedGame, GameError>> CreateGameAsync(CreateGameRequest request, CancellationToken ct = default);
-    Task<Result<ControlOutcome, GameError>> StartAsync(CancellationToken ct = default);
-    Task<Result<ControlOutcome, GameError>> StopAsync(CancellationToken ct = default);
-    Task<Result<ControlOutcome, GameError>> PauseAsync(CancellationToken ct = default);
-    Task<Result<ControlOutcome, GameError>> ResumeAsync(CancellationToken ct = default);
-    Task<Result<ControlOutcome, GameError>> StepAsync(CancellationToken ct = default);
-    Task<Result<Snapshot, GameError>> GetSnapshotAsync(CancellationToken ct = default);
+    Task<Result<CreatedGame, GameError>> CreateGame(CreateGameRequest request, CancellationToken ct = default);
+    Task<Result<ControlOutcome, GameError>> Start(CancellationToken ct = default);
+    Task<Result<ControlOutcome, GameError>> Stop(CancellationToken ct = default);
+    Task<Result<ControlOutcome, GameError>> Pause(CancellationToken ct = default);
+    Task<Result<ControlOutcome, GameError>> Resume(CancellationToken ct = default);
+    Task<Result<ControlOutcome, GameError>> Step(CancellationToken ct = default);
+    Task<Result<Snapshot, GameError>> GetSnapshot(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -51,7 +51,7 @@ public interface IGameStream : IAsyncDisposable
     /// <summary>The transport's connection lifecycle (auto-reconnect and final close).</summary>
     event Action<StreamConnectionState> ConnectionStateChanged;
 
-    Task ConnectAsync(CancellationToken ct = default);
+    Task Connect(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -66,8 +66,8 @@ public interface IAdminSecretStore
     /// <summary>The stored secret, or null. Intended for the API implementation only.</summary>
     string? Current { get; }
 
-    Task SetAsync(string secret);
-    Task ClearAsync();
+    Task Set(string secret);
+    Task Clear();
 
     /// <summary>Raised whenever the stored secret is set or cleared.</summary>
     event Action? Changed;

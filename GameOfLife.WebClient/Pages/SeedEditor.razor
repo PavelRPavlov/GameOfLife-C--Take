@@ -57,8 +57,8 @@
             <div class="seed-group">
                 <span class="seed-group-title">Saved seed</span>
                 <div class="seed-group-body seed-group-body--fill">
-                    <button type="button" class="seed-tool" @onclick="SaveSeedAsync">Save seed</button>
-                    <button type="button" class="seed-tool" disabled="@(!_hasSaved)" @onclick="LoadSeedAsync">Load saved seed</button>
+                    <button type="button" class="seed-tool" @onclick="SaveSeed">Save seed</button>
+                    <button type="button" class="seed-tool" disabled="@(!_hasSaved)" @onclick="LoadSeed">Load saved seed</button>
                 </div>
                 @if (_seedMsg is not null)
                 {
@@ -163,7 +163,7 @@
     [JSInvokable]
     public async Task OnStrokeEnd()
     {
-        await NotifyChangedAsync();
+        await NotifyChanged();
     }
 
     // One click, one placement: each preset button stamps its figure centred on the torus immediately
@@ -194,7 +194,7 @@
 
     // Persist the current board to local storage. The board itself doesn't change, so no canvas re-render
     // or parent notification is needed — just enable the Load button and confirm.
-    private async Task SaveSeedAsync()
+    private async Task SaveSeed()
     {
         await JS.InvokeVoidAsync("localStorage.setItem", SavedSeedKey, _board.ToBase64());
         _hasSaved = true;
@@ -202,7 +202,7 @@
         StateHasChanged();
     }
 
-    private async Task LoadSeedAsync()
+    private async Task LoadSeed()
     {
         var stored = await JS.InvokeAsync<string?>("localStorage.getItem", SavedSeedKey);
         if (!_board.TryLoadBase64(stored))
@@ -230,10 +230,10 @@
     private async Task PushAsync()
     {
         if (_ready) await _module!.InvokeVoidAsync("render", _id, _board.ToPackedBytes());
-        await NotifyChangedAsync();
+        await NotifyChanged();
     }
 
-    private async Task NotifyChangedAsync()
+    private async Task NotifyChanged()
     {
         await InvokeAsync(StateHasChanged);
         if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();

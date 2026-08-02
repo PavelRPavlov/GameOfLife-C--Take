@@ -21,24 +21,24 @@ internal sealed class FakeGameApi : IGameApi
 
     public int SnapshotCalls { get; private set; }
 
-    /// <summary>When set, <see cref="GetSnapshotAsync"/> awaits this before returning its result.</summary>
+    /// <summary>When set, <see cref="GetSnapshot"/> awaits this before returning its result.</summary>
     public TaskCompletionSource? SnapshotGate { get; set; }
 
     public void EnqueueSnapshot(Result<Snapshot, GameError> result) => _snapshots.Add(result);
 
-    public async Task<Result<CreatedGame, GameError>> CreateGameAsync(CreateGameRequest request, CancellationToken ct = default)
+    public async Task<Result<CreatedGame, GameError>> CreateGame(CreateGameRequest request, CancellationToken ct = default)
     {
         await Task.CompletedTask;
         return CreateResult;
     }
 
-    public Task<Result<ControlOutcome, GameError>> StartAsync(CancellationToken ct = default) => Task.FromResult(ControlResult);
-    public Task<Result<ControlOutcome, GameError>> StopAsync(CancellationToken ct = default) => Task.FromResult(ControlResult);
-    public Task<Result<ControlOutcome, GameError>> PauseAsync(CancellationToken ct = default) => Task.FromResult(ControlResult);
-    public Task<Result<ControlOutcome, GameError>> ResumeAsync(CancellationToken ct = default) => Task.FromResult(ControlResult);
-    public Task<Result<ControlOutcome, GameError>> StepAsync(CancellationToken ct = default) => Task.FromResult(ControlResult);
+    public Task<Result<ControlOutcome, GameError>> Start(CancellationToken ct = default) => Task.FromResult(ControlResult);
+    public Task<Result<ControlOutcome, GameError>> Stop(CancellationToken ct = default) => Task.FromResult(ControlResult);
+    public Task<Result<ControlOutcome, GameError>> Pause(CancellationToken ct = default) => Task.FromResult(ControlResult);
+    public Task<Result<ControlOutcome, GameError>> Resume(CancellationToken ct = default) => Task.FromResult(ControlResult);
+    public Task<Result<ControlOutcome, GameError>> Step(CancellationToken ct = default) => Task.FromResult(ControlResult);
 
-    public Task<Result<Snapshot, GameError>> GetSnapshotAsync(CancellationToken ct = default)
+    public Task<Result<Snapshot, GameError>> GetSnapshot(CancellationToken ct = default)
     {
         SnapshotCalls++;
         var index = Math.Min(_snapshotIndex, _snapshots.Count - 1);
@@ -60,10 +60,10 @@ internal sealed class FakeGameStream : IGameStream
 
     public bool Connected { get; private set; }
 
-    /// <summary>When set, <see cref="ConnectAsync"/> faults with this instead of connecting.</summary>
+    /// <summary>When set, <see cref="Connect"/> faults with this instead of connecting.</summary>
     public Exception? ConnectException { get; set; }
 
-    public Task ConnectAsync(CancellationToken ct = default)
+    public Task Connect(CancellationToken ct = default)
     {
         if (ConnectException is not null)
             return Task.FromException(ConnectException);
@@ -85,14 +85,14 @@ internal sealed class FakeAdminSecretStore : IAdminSecretStore
     public string? Current { get; private set; }
     public event Action? Changed;
 
-    public Task SetAsync(string secret)
+    public Task Set(string secret)
     {
         Current = secret;
         Changed?.Invoke();
         return Task.CompletedTask;
     }
 
-    public Task ClearAsync()
+    public Task Clear()
     {
         Current = null;
         Changed?.Invoke();

@@ -16,7 +16,7 @@ public class ErrorMessagesTests
     [InlineData(GameStatus.Running, "running")]
     [InlineData(GameStatus.Paused, "paused")]
     [InlineData(GameStatus.NoGame, "not running")] // defensive fallback for the "no live game" case
-    public void InvalidStateForVerb_names_the_current_state_in_friendly_words(GameStatus status, string expected)
+    public void Given_a_game_status_When_InvalidStateForVerb_is_formatted_Then_it_names_the_current_state_in_friendly_words(GameStatus status, string expected)
     {
         var message = ErrorMessages.InvalidStateForVerb(status);
 

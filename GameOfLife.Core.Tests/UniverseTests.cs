@@ -19,7 +19,7 @@ public class UniverseTests
     [InlineData("ulong", 64)]
     [InlineData("UInt64", 64)]
     [InlineData("  UInt64  ", 64)] // surrounding whitespace is tolerated
-    public void Wrap_capable_type_names_parse_to_their_bit_width(string typeName, int expectedBitWidth)
+    public void Given_a_wrap_capable_type_name_When_parsed_Then_it_yields_its_bit_width(string typeName, int expectedBitWidth)
     {
         Assert.True(Universe.TryParseCoordinateType(typeName, out var universe));
         Assert.Equal(expectedBitWidth, universe.BitWidth);
@@ -37,7 +37,7 @@ public class UniverseTests
     [InlineData("")]         // empty
     [InlineData("   ")]      // blank
     [InlineData(null)]       // missing
-    public void Non_wrap_capable_type_names_are_rejected(string? typeName)
+    public void Given_a_non_wrap_capable_type_name_When_parsed_Then_it_is_rejected(string? typeName)
     {
         Assert.False(Universe.TryParseCoordinateType(typeName, out _));
     }
@@ -47,7 +47,7 @@ public class UniverseTests
     [InlineData(16, 0xFFFFUL)]
     [InlineData(32, 0xFFFF_FFFFUL)]
     [InlineData(64, ulong.MaxValue)]
-    public void Wrap_mask_is_two_to_the_bit_width_minus_one(int bitWidth, ulong expectedMask)
+    public void Given_a_universe_of_a_given_bit_width_When_its_wrap_mask_is_read_Then_it_is_two_to_the_bit_width_minus_one(int bitWidth, ulong expectedMask)
     {
         var universe = new Universe(bitWidth);
 
@@ -62,13 +62,13 @@ public class UniverseTests
     [InlineData(7)]
     [InlineData(63)]
     [InlineData(128)]
-    public void Non_power_of_two_widths_are_rejected(int bitWidth)
+    public void Given_a_non_power_of_two_bit_width_When_a_universe_is_constructed_Then_it_is_rejected(int bitWidth)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new Universe(bitWidth));
     }
 
     [Fact]
-    public void The_full_universe_is_the_2_to_the_64_torus()
+    public void Given_the_full_universe_When_its_dimensions_are_read_Then_it_is_the_2_to_the_64_torus()
     {
         Assert.Equal(64, Universe.Full.BitWidth);
         Assert.Equal(ulong.MaxValue, Universe.Full.WrapMask);
@@ -79,7 +79,7 @@ public class UniverseTests
     // the default 2^64 torus 255 and 0 are 255 apart, so the same cells are not adjacent at all and
     // die out. One seed, two outcomes — proof the configured width really drives wraparound.
     [Fact]
-    public void A_blinker_across_the_seam_wraps_on_a_byte_universe_but_not_on_the_full_one()
+    public void Given_a_blinker_across_the_seam_When_advanced_Then_it_wraps_on_a_byte_universe_but_not_on_the_full_one()
     {
         var rule = Rule.Parse("B3/S23");
         Cell[] seamBlinker = [new(255, 10), new(0, 10), new(1, 10)];

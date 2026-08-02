@@ -5,7 +5,7 @@ namespace GameOfLife.WebClient.Tests;
 public class SeedPatternsTests
 {
     [Fact]
-    public void All_ContainsTheResolvedLibrary()
+    public void Given_the_seed_pattern_library_When_listing_all_patterns_Then_it_contains_the_resolved_names_in_order()
     {
         var names = SeedPatterns.All.Select(p => p.Name).ToArray();
         Assert.Equal(
@@ -20,7 +20,7 @@ public class SeedPatternsTests
     [InlineData("LWSS", 9, 5, 4)]
     [InlineData("Pulsar", 48, 13, 13)]
     [InlineData("Gosper gun", 36, 36, 9)]
-    public void Pattern_HasExpectedCellCountAndBoundingBox(string name, int cells, int width, int height)
+    public void Given_a_named_pattern_When_inspecting_its_geometry_Then_the_cell_count_and_bounding_box_match(string name, int cells, int width, int height)
     {
         var pattern = SeedPatterns.All.Single(p => p.Name == name);
 
@@ -30,7 +30,7 @@ public class SeedPatternsTests
     }
 
     [Fact]
-    public void EveryPattern_FitsWithinTheBoard()
+    public void Given_every_seed_pattern_When_placed_Then_it_fits_within_the_board()
     {
         foreach (var pattern in SeedPatterns.All)
         {

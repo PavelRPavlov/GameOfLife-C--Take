@@ -7,7 +7,7 @@ namespace GameOfLife.Api.Features.CreateGame;
 /// </summary>
 internal static class CreateGameEndpoint
 {
-    public static async Task<IResult> HandleAsync(HttpContext context, GameHost host, IOptions<GameOptions> gameOptions)
+    public static async Task<IResult> Handle(HttpContext context, GameHost host, IOptions<GameOptions> gameOptions)
     {
         CreateGameRequest? request;
         try
@@ -34,7 +34,7 @@ internal static class CreateGameEndpoint
                 ToFieldErrors(validationResults));
 
         // Validation passed (stateless) before any game is created — a bad request never claims the slot.
-        var session = await host.TryCreateAsync(request.ToParameters(gameOptions.Value));
+        var session = await host.TryCreate(request.ToParameters(gameOptions.Value));
         if (session is null)
             return ErrorResults.Envelope(
                 StatusCodes.Status409Conflict,

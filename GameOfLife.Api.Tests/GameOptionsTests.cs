@@ -17,7 +17,7 @@ namespace GameOfLife.Api.Tests;
 public class GameOptionsTests
 {
     [Fact]
-    public async Task Omitted_rule_falls_back_to_the_configured_default()
+    public async Task Given_a_configured_default_rule_When_a_game_is_created_without_a_rule_Then_the_configured_default_is_applied()
     {
         await using var ctx = ApiTestContext.Create(
             settings: new Dictionary<string, string?> { ["Game:DefaultRule"] = "B3/S23" });
@@ -30,7 +30,7 @@ public class GameOptionsTests
     }
 
     [Fact]
-    public async Task Configured_default_rule_override_changes_the_applied_rule()
+    public async Task Given_an_overridden_configured_default_rule_When_a_game_is_created_without_a_rule_Then_the_override_is_applied()
     {
         // Same request (no rule) under a different configured default — the override is observable in
         // the response, exactly as switching appsettings.{Environment}.json would be.
@@ -45,7 +45,7 @@ public class GameOptionsTests
     }
 
     [Fact]
-    public async Task Explicit_rule_still_wins_over_the_configured_default()
+    public async Task Given_a_configured_default_rule_When_a_game_is_created_with_an_explicit_rule_Then_the_explicit_rule_wins()
     {
         await using var ctx = ApiTestContext.Create(
             settings: new Dictionary<string, string?> { ["Game:DefaultRule"] = "B36/S23" });
@@ -58,7 +58,7 @@ public class GameOptionsTests
     }
 
     [Fact]
-    public async Task Cors_allowed_origins_bind_from_configuration()
+    public async Task Given_cors_allowed_origins_in_configuration_When_the_options_are_bound_Then_they_contain_the_configured_origin()
     {
         await using var ctx = ApiTestContext.Create(
             settings: new Dictionary<string, string?> { ["Cors:AllowedOrigins:0"] = "https://cors-bind.test" });

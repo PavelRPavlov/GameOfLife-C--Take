@@ -70,7 +70,7 @@ public sealed class ApiTestContext : IAsyncDisposable
     public IServiceProvider Services => _factory.Services;
 
     /// <summary>Creates a game via <c>POST /game</c>, asserting success, and returns the response.</summary>
-    public async Task<CreateGameResponse> CreateGameAsync(string? body = null)
+    public async Task<CreateGameResponse> CreateGame(string? body = null)
     {
         var response = await Client.PostAsync("/game", Requests.Json(body ?? Requests.ValidCreate()));
         response.EnsureSuccessStatusCode();
@@ -78,7 +78,7 @@ public sealed class ApiTestContext : IAsyncDisposable
     }
 
     /// <summary>POSTs a control verb (e.g. "start"), optionally with an X-Admin-Secret header.</summary>
-    public Task<HttpResponseMessage> ControlAsync(string verb, string? secret)
+    public Task<HttpResponseMessage> Control(string verb, string? secret)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/" + verb);
         if (secret is not null)
@@ -87,10 +87,10 @@ public sealed class ApiTestContext : IAsyncDisposable
     }
 
     /// <summary>Fetches <c>GET /snapshot</c>.</summary>
-    public Task<HttpResponseMessage> GetSnapshotAsync() => Client.GetAsync("/snapshot");
+    public Task<HttpResponseMessage> GetSnapshot() => Client.GetAsync("/snapshot");
 
     /// <summary>Opens an observer SignalR connection over the in-memory server (long polling transport).</summary>
-    public async Task<ObserverClient> ConnectObserverAsync()
+    public async Task<ObserverClient> ConnectObserver()
     {
         var connection = new HubConnectionBuilder()
             .WithUrl(new Uri(_factory.Server.BaseAddress, GameHost.HubUrl.TrimStart('/')), options =>
@@ -148,7 +148,7 @@ public sealed class ObserverClient
     }
 
     /// <summary>Waits until <paramref name="predicate"/> holds over the buffered pushes, or times out.</summary>
-    public async Task<bool> WaitForAsync(Func<ObserverClient, bool> predicate, TimeSpan? timeout = null)
+    public async Task<bool> WaitFor(Func<ObserverClient, bool> predicate, TimeSpan? timeout = null)
     {
         var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
         while (DateTime.UtcNow < deadline)
