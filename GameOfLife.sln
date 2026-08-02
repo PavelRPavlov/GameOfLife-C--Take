@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameOfLife.Api.Tests", "Gam
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameOfLife.WebClient.Tests", "GameOfLife.WebClient.Tests\GameOfLife.WebClient.Tests.csproj", "{2E271099-4226-401F-BF30-BA6BB7CF72EA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameOfLife.Shared", "GameOfLife.Shared\GameOfLife.Shared.csproj", "{696A6074-3C1E-4385-B533-48F3A90187FA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -94,6 +96,18 @@ Global
 		{2E271099-4226-401F-BF30-BA6BB7CF72EA}.Release|x64.Build.0 = Release|Any CPU
 		{2E271099-4226-401F-BF30-BA6BB7CF72EA}.Release|x86.ActiveCfg = Release|Any CPU
 		{2E271099-4226-401F-BF30-BA6BB7CF72EA}.Release|x86.Build.0 = Release|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Debug|x64.Build.0 = Debug|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Debug|x86.Build.0 = Debug|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Release|x64.ActiveCfg = Release|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Release|x64.Build.0 = Release|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Release|x86.ActiveCfg = Release|Any CPU
+		{696A6074-3C1E-4385-B533-48F3A90187FA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

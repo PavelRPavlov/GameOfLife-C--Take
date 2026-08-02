@@ -1,7 +1,3 @@
-using System.Text.Json.Serialization;
-using GameOfLife.Core;
-using Microsoft.AspNetCore.SignalR.Client;
-
 namespace GameOfLife.WebClient.Communication;
 
 /// <summary>

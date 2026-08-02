@@ -3,12 +3,14 @@ using System.Net.Http.Json;
 using GameOfLife.Core;
 using GameOfLife.Api.Features.GameControl;
 using GameOfLife.Api.Tests.Support;
+using GameOfLife.Shared;
 
 namespace GameOfLife.Api.Tests;
 
 /// <summary>
 /// The control-verb matrix: the existence → auth → state check order, constant-time secret gating,
-/// and strict rejection of no-op transitions. Errors are bodyless 404/403/409.
+/// and strict rejection of no-op transitions. Errors carry the uniform envelope with a machine-readable
+/// code (404 GAME_NOT_FOUND / 403 INVALID_ADMIN_SECRET / 409 INVALID_STATE_FOR_VERB).
 /// </summary>
 public class ControlVerbTests
 {
@@ -28,6 +30,7 @@ public class ControlVerbTests
         var response = await ctx.ControlAsync(verb, Guid.NewGuid().ToString());
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await response.ReadErrorAsync(ErrorCodes.GameNotFound);
     }
 
     [Theory]
@@ -48,6 +51,9 @@ public class ControlVerbTests
         Assert.Equal(HttpStatusCode.Forbidden, missing.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, garbage.StatusCode);
+        await missing.ReadErrorAsync(ErrorCodes.InvalidAdminSecret);
+        await wrong.ReadErrorAsync(ErrorCodes.InvalidAdminSecret);
+        await garbage.ReadErrorAsync(ErrorCodes.InvalidAdminSecret);
     }
 
     [Fact]
@@ -59,6 +65,7 @@ public class ControlVerbTests
         var response = await ctx.ControlAsync("start", "not-a-guid");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await response.ReadErrorAsync(ErrorCodes.GameNotFound);
     }
 
     [Fact]
@@ -75,7 +82,7 @@ public class ControlVerbTests
     }
 
     [Fact]
-    public async Task Starting_an_already_running_game_is_409()
+    public async Task Starting_an_already_running_game_maps_to_INVALID_STATE_naming_running()
     {
         await using var ctx = new ApiTestContext();
         var game = await ctx.CreateGameAsync(Requests.ValidCreate(autoStart: true));
@@ -83,10 +90,14 @@ public class ControlVerbTests
         var response = await ctx.ControlAsync("start", game.AdminSecret);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.ReadErrorAsync(ErrorCodes.InvalidStateForVerb);
+        // The message names the current state in friendly words (Running → "running").
+        Assert.Contains("running", error.Message);
+        Assert.Empty(error.Errors);
     }
 
     [Fact]
-    public async Task Resuming_a_game_that_never_ran_is_409()
+    public async Task Resuming_a_game_that_never_ran_maps_to_INVALID_STATE_naming_the_waiting_state()
     {
         await using var ctx = new ApiTestContext();
         var game = await ctx.CreateGameAsync(); // held Created
@@ -94,10 +105,13 @@ public class ControlVerbTests
         var response = await ctx.ControlAsync("resume", game.AdminSecret);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.ReadErrorAsync(ErrorCodes.InvalidStateForVerb);
+        // Created → "waiting to start".
+        Assert.Contains("waiting to start", error.Message);
     }
 
     [Fact]
-    public async Task Stepping_a_running_game_is_409()
+    public async Task Stepping_a_running_game_maps_to_INVALID_STATE()
     {
         await using var ctx = new ApiTestContext();
         var game = await ctx.CreateGameAsync(Requests.ValidCreate(autoStart: true));
@@ -105,6 +119,8 @@ public class ControlVerbTests
         var response = await ctx.ControlAsync("step", game.AdminSecret);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.ReadErrorAsync(ErrorCodes.InvalidStateForVerb);
+        Assert.Contains("running", error.Message);
     }
 
     [Fact]
@@ -139,6 +155,7 @@ public class ControlVerbTests
         // The old secret no longer controls the new game.
         var stale = await ctx.ControlAsync("start", first.AdminSecret);
         Assert.Equal(HttpStatusCode.Forbidden, stale.StatusCode);
+        await stale.ReadErrorAsync(ErrorCodes.InvalidAdminSecret);
     }
 
     [Fact]
@@ -151,5 +168,6 @@ public class ControlVerbTests
         var response = await ctx.ControlAsync("start", Guid.NewGuid().ToString());
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await response.ReadErrorAsync(ErrorCodes.InvalidAdminSecret);
     }
 }

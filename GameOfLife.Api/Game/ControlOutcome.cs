@@ -1,5 +1,3 @@
-using GameOfLife.Core;
-
 namespace GameOfLife.Api.Game;
 
 /// <summary>How a control verb (<c>start/stop/pause/resume/step</c>) resolved.</summary>
@@ -26,7 +24,13 @@ public readonly record struct ControlOutcome(ControlResult Result, GameStatus St
 {
     public static ControlOutcome NoGame { get; } = new(ControlResult.NoGame, GameStatus.NoGame, 0);
     public static ControlOutcome Forbidden { get; } = new(ControlResult.Forbidden, GameStatus.NoGame, 0);
-    public static ControlOutcome InvalidState { get; } = new(ControlResult.InvalidState, GameStatus.NoGame, 0);
+
+    /// <summary>
+    /// A wrong-state rejection carrying the <em>current</em> state, so the HTTP edge can name it in the
+    /// error message (there is always a live game when this outcome is produced).
+    /// </summary>
+    public static ControlOutcome InvalidState(GameStatus current) =>
+        new(ControlResult.InvalidState, current, 0);
 
     public static ControlOutcome Ok(GameStatus status, long generation) =>
         new(ControlResult.Ok, status, generation);

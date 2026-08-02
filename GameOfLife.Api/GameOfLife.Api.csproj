@@ -12,6 +12,11 @@
 
     <ItemGroup>
       <ProjectReference Include="..\GameOfLife.Core\GameOfLife.Core.csproj" />
+      <ProjectReference Include="..\GameOfLife.Shared\GameOfLife.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <InternalsVisibleTo Include="GameOfLife.Api.Tests" />
     </ItemGroup>
 
 </Project>

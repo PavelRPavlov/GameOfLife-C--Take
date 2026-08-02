@@ -50,7 +50,7 @@ public class ShellConnectionTests
     public async Task NoGame_is_a_resolved_status_so_phase_is_ready()
     {
         var (shell, api, _, _) = Build();
-        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
 
         await shell.InitializeAsync();
 
@@ -72,7 +72,7 @@ public class ShellConnectionTests
     public async Task Reconnecting_push_shows_reconnecting_then_recovers_to_ready()
     {
         var (shell, api, stream, _) = Build();
-        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
         await shell.InitializeAsync();
         Assert.Equal(ShellPhase.Ready, shell.Phase);
 
@@ -90,7 +90,7 @@ public class ShellConnectionTests
     public async Task Closed_push_lands_disconnected()
     {
         var (shell, api, stream, _) = Build();
-        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
         await shell.InitializeAsync();
 
         stream.PushConnectionState(StreamConnectionState.Closed);
@@ -107,7 +107,7 @@ public class ShellConnectionTests
         Assert.Equal(ShellPhase.Disconnected, shell.Phase);
 
         // Server is back — the next status fetch resolves.
-        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
         await shell.RetryAsync();
 
         Assert.Equal(ShellPhase.Ready, shell.Phase);
@@ -118,7 +118,7 @@ public class ShellConnectionTests
     {
         var (shell, api, stream, _) = Build();
         // Connected pre-game.
-        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
         await shell.InitializeAsync();
 
         // While disconnected, a game was created; on recovery the re-fetch sees it.

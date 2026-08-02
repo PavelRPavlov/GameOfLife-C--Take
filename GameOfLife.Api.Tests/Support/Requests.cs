@@ -23,5 +23,21 @@ public static class Requests
         }
         """;
 
+    /// <summary>A valid create body with the <c>rule</c> field omitted, so the server applies its configured default.</summary>
+    public static string ValidCreateWithoutRule(
+        string? seed = null,
+        string originX = "0",
+        string originY = "0",
+        bool autoStart = false,
+        double tickRate = 10) =>
+        $$"""
+        {
+          "seed": "{{seed ?? TestSeeds.AllDead()}}",
+          "origin": { "x": "{{originX}}", "y": "{{originY}}" },
+          "autoStart": {{(autoStart ? "true" : "false")}},
+          "tickRate": {{tickRate.ToString(System.Globalization.CultureInfo.InvariantCulture)}}
+        }
+        """;
+
     public static StringContent Json(string json) => new(json, Encoding.UTF8, "application/json");
 }

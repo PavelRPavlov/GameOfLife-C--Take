@@ -2,15 +2,16 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using GameOfLife.Core;
+using GameOfLife.Shared;
 using GameOfLife.WebClient.Communication;
 
 namespace GameOfLife.WebClient.Tests;
 
 /// <summary>
-/// Exercises <see cref="HttpGameApi"/> against a canned <see cref="HttpMessageHandler"/>: the
-/// status-code → <see cref="GameError"/> mapping, wire parsing (decimal-string coordinates,
-/// string enums), the transparent <c>X-Admin-Secret</c> header, and the client-side validation
-/// that short-circuits before any round-trip.
+/// Exercises <see cref="HttpGameApi"/> against a canned <see cref="HttpMessageHandler"/>: the error
+/// envelope <c>code</c> → <see cref="GameError"/> mapping (server message shown verbatim), wire parsing
+/// (decimal-string coordinates, string enums), the transparent <c>X-Admin-Secret</c> header, and the
+/// client-side validation that short-circuits before any round-trip.
 /// </summary>
 public class HttpGameApiTests
 {
@@ -19,6 +20,15 @@ public class HttpGameApiTests
 
     private static CreateGameRequest ValidCreate() =>
         new(ValidSeed, new Cell(10, 20), "B3/S23", 5.0, AutoStart: false);
+
+    /// <summary>The one client-owned string, shown when no usable error envelope arrives.</summary>
+    private const string TransportFallback = "Couldn't reach the server. Please try again.";
+
+    /// <summary>Serializes an error envelope body exactly as the backend would (camelCase JSON).</summary>
+    private static string Envelope(string code, string message, params FieldError[] errors) =>
+        JsonSerializer.Serialize(
+            new ErrorEnvelope(code, message, errors),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
     private static (HttpGameApi api, StubHandler handler, FakeAdminSecretStore store) NewApi()
     {
@@ -55,27 +65,32 @@ public class HttpGameApiTests
     }
 
     [Fact]
-    public async Task CreateGame_409_maps_to_AlreadyExists()
+    public async Task CreateGame_GAME_ALREADY_EXISTS_maps_to_AlreadyExists_with_server_message()
     {
         var (api, handler, _) = NewApi();
-        handler.Respond(HttpStatusCode.Conflict, "A game already exists.");
+        const string message = "A game already exists. Only one game can run at a time.";
+        handler.Respond(HttpStatusCode.Conflict, Envelope(ErrorCodes.GameAlreadyExists, message));
 
         var result = await api.CreateGameAsync(ValidCreate());
 
-        Assert.True(result.IsError);
-        Assert.IsType<GameError.AlreadyExists>(result.Error);
+        var error = Assert.IsType<GameError.AlreadyExists>(result.Error);
+        Assert.Equal(message, error.Message);
     }
 
     [Fact]
-    public async Task CreateGame_400_maps_to_ValidationRejected_with_details()
+    public async Task CreateGame_VALIDATION_FAILED_maps_to_ValidationRejected_with_field_errors()
     {
         var (api, handler, _) = NewApi();
-        handler.Respond(HttpStatusCode.BadRequest, "seed is wrong");
+        const string message = "Some of the values you provided aren't valid.";
+        handler.Respond(HttpStatusCode.BadRequest, Envelope(
+            ErrorCodes.ValidationFailed, message,
+            new FieldError("tickRate", "The tick rate must be between 0.1 and 200 generations per second.")));
 
         var result = await api.CreateGameAsync(ValidCreate());
 
         var rejected = Assert.IsType<GameError.ValidationRejected>(result.Error);
-        Assert.Contains("seed is wrong", rejected.Details);
+        Assert.Equal(message, rejected.Message);
+        Assert.Contains(rejected.Errors, e => e.Field == "tickRate");
     }
 
     [Theory]
@@ -116,7 +131,7 @@ public class HttpGameApiTests
     public async Task Control_without_secret_sends_no_admin_header()
     {
         var (api, handler, _) = NewApi();
-        handler.Respond(HttpStatusCode.Forbidden, "");
+        handler.Respond(HttpStatusCode.Forbidden, Envelope(ErrorCodes.InvalidAdminSecret, "Your admin access isn't valid."));
 
         var result = await api.PauseAsync();
 
@@ -125,19 +140,62 @@ public class HttpGameApiTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.NotFound, typeof(GameError.NoGame))]
-    [InlineData(HttpStatusCode.Forbidden, typeof(GameError.Forbidden))]
-    [InlineData(HttpStatusCode.Conflict, typeof(GameError.InvalidState))]
-    [InlineData(HttpStatusCode.InternalServerError, typeof(GameError.Transport))]
-    public async Task Control_maps_status_codes(HttpStatusCode status, Type expectedError)
+    [InlineData(ErrorCodes.GameNotFound, typeof(GameError.NoGame))]
+    [InlineData(ErrorCodes.InvalidAdminSecret, typeof(GameError.Forbidden))]
+    [InlineData(ErrorCodes.InvalidStateForVerb, typeof(GameError.InvalidState))]
+    [InlineData(ErrorCodes.GameAlreadyExists, typeof(GameError.AlreadyExists))]
+    [InlineData(ErrorCodes.ValidationFailed, typeof(GameError.ValidationRejected))]
+    [InlineData(ErrorCodes.InternalError, typeof(GameError.Transport))]
+    [InlineData(ErrorCodes.MalformedRequestBody, typeof(GameError.Transport))]
+    public async Task Error_code_maps_to_arm_and_surfaces_server_message(string code, Type expectedError)
     {
         var (api, handler, _) = NewApi();
-        handler.Respond(status, "");
+        // The client branches on the envelope code, not the HTTP status — a fixed non-2xx status here.
+        handler.Respond(HttpStatusCode.BadRequest, Envelope(code, "the server's message"));
 
         var result = await api.StopAsync();
 
-        Assert.True(result.IsError);
         Assert.IsType(expectedError, result.Error);
+        Assert.Equal("the server's message", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task Unknown_code_falls_back_to_Transport_but_shows_the_server_message()
+    {
+        var (api, handler, _) = NewApi();
+        handler.Respond(HttpStatusCode.BadRequest, Envelope("SOME_FUTURE_CODE", "a message from a newer server"));
+
+        var result = await api.StopAsync();
+
+        var transport = Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal("a message from a newer server", transport.Message);
+    }
+
+    [Theory]
+    [InlineData("")]                 // no body at all
+    [InlineData("not json")]         // unparseable body
+    [InlineData("\"a bare string\"")] // valid JSON but not the envelope
+    public async Task Absent_or_unparseable_body_falls_back_to_the_client_transport_string(string body)
+    {
+        var (api, handler, _) = NewApi();
+        handler.Respond(HttpStatusCode.BadRequest, body);
+
+        var result = await api.StopAsync();
+
+        var transport = Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal(TransportFallback, transport.Message);
+    }
+
+    [Fact]
+    public async Task Empty_message_envelope_falls_back_to_the_client_transport_string()
+    {
+        var (api, handler, _) = NewApi();
+        handler.Respond(HttpStatusCode.NotFound, Envelope(ErrorCodes.GameNotFound, ""));
+
+        var result = await api.StopAsync();
+
+        var transport = Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal(TransportFallback, transport.Message);
     }
 
     [Fact]
@@ -160,18 +218,19 @@ public class HttpGameApiTests
     }
 
     [Fact]
-    public async Task GetSnapshot_404_maps_to_NoGame()
+    public async Task GetSnapshot_GAME_NOT_FOUND_maps_to_NoGame_with_server_message()
     {
         var (api, handler, _) = NewApi();
-        handler.Respond(HttpStatusCode.NotFound, "");
+        handler.Respond(HttpStatusCode.NotFound, Envelope(ErrorCodes.GameNotFound, "There's no game right now."));
 
         var result = await api.GetSnapshotAsync();
 
-        Assert.IsType<GameError.NoGame>(result.Error);
+        var error = Assert.IsType<GameError.NoGame>(result.Error);
+        Assert.Equal("There's no game right now.", error.Message);
     }
 
     [Fact]
-    public async Task Network_failure_maps_to_Transport()
+    public async Task Network_failure_maps_to_Transport_with_the_client_fallback_string()
     {
         var (api, handler, _) = NewApi();
         handler.Throw(new HttpRequestException("connection refused"));
@@ -179,7 +238,8 @@ public class HttpGameApiTests
         var result = await api.GetSnapshotAsync();
 
         var transport = Assert.IsType<GameError.Transport>(result.Error);
-        Assert.Contains("connection refused", transport.Detail);
+        // A genuine network failure has no body, so the one client-owned string is shown.
+        Assert.Equal(TransportFallback, transport.Message);
     }
 
     /// <summary>Records the last request and returns a canned response (or throws a canned exception).</summary>

@@ -153,7 +153,7 @@ public sealed class GameStoreTests
     {
         var (store, api, _, secret) = NewStore();
         await secret.SetAsync("stale-secret");
-        api.ControlResult = Result<ControlOutcome, GameError>.Err(GameError.Forbidden.Instance);
+        api.ControlResult = Result<ControlOutcome, GameError>.Err(new GameError.Forbidden("forbidden"));
 
         var result = await store.StartAsync();
 
@@ -188,7 +188,7 @@ public sealed class GameStoreTests
     public async Task RefreshStatus_on_404_seeds_NoGame()
     {
         var (store, api, _, _) = NewStore();
-        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(GameError.NoGame.Instance));
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
 
         var result = await store.RefreshStatusAsync();
 

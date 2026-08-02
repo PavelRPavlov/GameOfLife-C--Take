@@ -1,5 +1,3 @@
-using GameOfLife.Api.Game;
-
 namespace GameOfLife.Api.Features.GameControl;
 
 /// <summary><c>POST /step</c> — advance exactly one generation while Paused, broadcasting immediately. X-Admin-Secret gated.</summary>

@@ -1,5 +1,3 @@
-using GameOfLife.Core;
-
 namespace GameOfLife.Api.Game;
 
 /// <summary>The validated domain inputs for creating a game — the kernel's create-entry contract.</summary>

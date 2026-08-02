@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using GameOfLife.Core;
 using GameOfLife.Api.Features.GetSnapshot;
 using GameOfLife.Api.Tests.Support;
+using GameOfLife.Shared;
 
 namespace GameOfLife.Api.Tests;
 
@@ -10,13 +11,15 @@ namespace GameOfLife.Api.Tests;
 public class SnapshotTests
 {
     [Fact]
-    public async Task Snapshot_with_no_game_is_404()
+    public async Task Snapshot_with_no_game_maps_to_GAME_NOT_FOUND()
     {
         await using var ctx = new ApiTestContext();
 
         var response = await ctx.GetSnapshotAsync();
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var error = await response.ReadErrorAsync(ErrorCodes.GameNotFound);
+        Assert.Empty(error.Errors);
     }
 
     [Fact]

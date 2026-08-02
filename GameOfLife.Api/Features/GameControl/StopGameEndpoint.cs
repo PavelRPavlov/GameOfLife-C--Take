@@ -1,5 +1,3 @@
-using GameOfLife.Api.Game;
-
 namespace GameOfLife.Api.Features.GameControl;
 
 /// <summary><c>POST /stop</c> — any existing state → torn down, freeing the slot. X-Admin-Secret gated.</summary>

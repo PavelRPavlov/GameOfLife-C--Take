@@ -1,6 +1,3 @@
-using GameOfLife.Api.Contracts;
-using GameOfLife.Core;
-
 namespace GameOfLife.Api.Features.GetSnapshot;
 
 /// <summary>200 body for <c>GET /snapshot</c> — the full live set at a known generation.</summary>

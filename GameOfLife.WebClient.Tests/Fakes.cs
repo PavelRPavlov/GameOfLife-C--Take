@@ -14,7 +14,7 @@ internal sealed class FakeGameApi : IGameApi
     private int _snapshotIndex;
 
     public Result<CreatedGame, GameError> CreateResult { get; set; } =
-        Result<CreatedGame, GameError>.Err(GameError.InvalidState.Instance);
+        Result<CreatedGame, GameError>.Err(new GameError.InvalidState("invalid state"));
 
     public Result<ControlOutcome, GameError> ControlResult { get; set; } =
         Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Running, 0));
