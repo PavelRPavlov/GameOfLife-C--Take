@@ -165,7 +165,7 @@ public sealed class HttpGameApi : IGameApi
     }
 
     private const double MinTickRate = 0.1;
-    private const double MaxTickRate = 60.0;
+    private const double MaxTickRate = 200.0;
 
     /// <summary>The seed is 100×100 bits = 1250 bytes, base64-encoded.</summary>
     private const int SeedByteLength = 1250;

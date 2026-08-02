@@ -82,7 +82,7 @@ public class HttpGameApiTests
     [InlineData("not-base64!!", "B3/S23", 5.0)]      // bad seed
     [InlineData(null, "B0/S23", 5.0)]                 // B0 rejected
     [InlineData(null, "B3/S23", 0.0)]                 // tick-rate below range
-    [InlineData(null, "B3/S23", 61.0)]                // tick-rate above range
+    [InlineData(null, "B3/S23", 201.0)]               // tick-rate above range
     [InlineData(null, "B33/S23", 5.0)]                // repeated digit in a group
     public async Task CreateGame_invalid_request_short_circuits_without_calling_backend(
         string? seed, string rule, double tickRate)

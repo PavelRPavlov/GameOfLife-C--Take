@@ -39,7 +39,7 @@ public sealed record Delta(
 /// <summary>
 /// The client-side <c>POST /game</c> request. Mirrors the backend body: a base64 100×100 seed
 /// (1250 bytes, row-major, MSB-first), an <see cref="Origin"/> placing it on the torus, a B/S
-/// rulestring, a tick rate (0.1..60 gen/sec), and whether to auto-start. Settings are fixed at
+/// rulestring, a tick rate (0.1..200 gen/sec), and whether to auto-start. Settings are fixed at
 /// create — the backend has no runtime-reconfigure endpoint.
 /// </summary>
 public sealed record CreateGameRequest(
