@@ -194,10 +194,15 @@ public sealed class GameHost
             if (generation.Number == _lastBroadcastGen)
                 return; // Nothing new since the last broadcast.
 
-            var births = generation.LiveCells.Where(c => !_lastBroadcastLive.Contains(c)).Select(c => c.ToDto()).ToList();
-            var deaths = _lastBroadcastLive.Where(c => !generation.LiveCells.Contains(c)).Select(c => c.ToDto()).ToList();
+            var births = generation.LiveCells.Where(c => !_lastBroadcastLive.Contains(c)).ToList();
+            var deaths = _lastBroadcastLive.Where(c => !generation.LiveCells.Contains(c)).ToList();
 
-            var delta = new DeltaDto(_lastBroadcastGen, generation.Number, births, deaths);
+            // Columnar (SoA): all X's, then all Y's — X[i] pairs with Y[i]. Coordinates stay native
+            // ulong so values above 2^53 and the torus boundaries survive the wire exactly.
+            var delta = new DeltaDto(
+                _lastBroadcastGen, generation.Number,
+                births.Select(c => c.X).ToArray(), births.Select(c => c.Y).ToArray(),
+                deaths.Select(c => c.X).ToArray(), deaths.Select(c => c.Y).ToArray());
             await _hub.Clients.All.ReceiveDelta(delta);
 
             _lastBroadcastGen = generation.Number;

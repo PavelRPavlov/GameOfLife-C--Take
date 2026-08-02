@@ -2,17 +2,19 @@ namespace GameOfLife.Api.Game;
 
 /// <summary>
 /// Registers the game kernel: the single in-memory <see cref="GameHost"/>, its broadcast loop, and
-/// the SignalR hub infrastructure (enum-as-string payloads). Streaming is kernel infrastructure, so
-/// the hub and its JSON protocol are registered here rather than in the REST API surface.
+/// the SignalR hub infrastructure (binary MessagePack payloads). Streaming is kernel infrastructure,
+/// so the hub and its wire protocol are registered here rather than in the REST API surface.
 /// </summary>
 public static class GameServiceCollectionExtensions
 {
     public static IServiceCollection AddGame(this IServiceCollection services)
     {
-        // Enums cross the SignalR wire as strings ("Running", "Created", ...).
+        // The hot-path delta and status pushes cross the wire as binary MessagePack: the delta's
+        // native ulong coordinates round-trip exactly and the payload shrinks materially versus JSON.
+        // The serializer options are pinned so server, client, and test harness agree (GameMessagePack).
         services.AddSignalR()
-            .AddJsonProtocol(options =>
-                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+            .AddMessagePackProtocol(options =>
+                options.SerializerOptions = GameMessagePack.SerializerOptions);
 
         // The torus every game runs on, resolved once from the (already startup-validated) coordinate
         // type. Validation guarantees the parse succeeds; Universe.Full is an unreachable safety net.

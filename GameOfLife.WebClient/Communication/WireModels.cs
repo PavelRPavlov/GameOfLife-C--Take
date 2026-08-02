@@ -2,9 +2,9 @@ namespace GameOfLife.WebClient.Communication;
 
 // The private wire contract for the backend. These DTOs never leave the transport implementations:
 // HttpGameApi (REST) and SignalRGameStream (the hub) parse them into the seam's domain types (Cell,
-// Snapshot, Delta, ...) at the boundary, so no consumer of the seam ever sees a decimal-string
-// coordinate or a JSON shape. Coordinates travel as decimal strings (128-bit torus, never one ulong)
-// and enums as their member names.
+// Snapshot, Delta, ...) at the boundary, so no consumer of the seam ever sees a wire coordinate or a
+// transport shape. The two transports carry coordinates differently: REST JSON uses decimal strings
+// (so values above 2^53 survive) while the binary MessagePack hub delta uses native ulong.
 
 /// <summary>Shared JSON options: Web defaults (camelCase, case-insensitive) plus string enums, matching the backend.</summary>
 internal static class WireJson
@@ -58,10 +58,28 @@ internal sealed record SnapshotResponseDto(
 /// <summary>
 /// The <c>ReceiveDelta</c> SignalR push body (mirrors the backend's <c>DeltaDto</c>): the hot-path
 /// steady-state change, self-describing via <see cref="FromGen"/>/<see cref="ToGen"/> so the store can
-/// detect gaps.
+/// detect gaps. Unlike the REST DTOs this rides the binary MessagePack hub, so coordinates are native
+/// <see cref="ulong"/> — not decimal strings — and <em>columnar</em> (all X's, then all Y's) to match
+/// the backend: <c>BirthsX[i]</c> pairs with <c>BirthsY[i]</c>.
 /// </summary>
 internal sealed record DeltaPushDto(
     long FromGen,
     long ToGen,
-    IReadOnlyList<CellDto> Births,
-    IReadOnlyList<CellDto> Deaths);
+    ulong[] BirthsX, ulong[] BirthsY,
+    ulong[] DeathsX, ulong[] DeathsY);
+
+/// <summary>Boundary parse from the columnar wire delta to the domain <see cref="Delta"/>.</summary>
+internal static class WireDeltas
+{
+    public static Delta ToDomain(this DeltaPushDto dto) =>
+        new(dto.FromGen, dto.ToGen, Zip(dto.BirthsX, dto.BirthsY), Zip(dto.DeathsX, dto.DeathsY));
+
+    // Re-pairs the parallel axis arrays into cells; X[i] pairs with Y[i].
+    private static IReadOnlyList<Cell> Zip(ulong[] xs, ulong[] ys)
+    {
+        var cells = new Cell[xs.Length];
+        for (var i = 0; i < xs.Length; i++)
+            cells[i] = new Cell(xs[i], ys[i]);
+        return cells;
+    }
+}

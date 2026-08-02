@@ -59,11 +59,14 @@ public class ObserverProtocolTests
         await ctx.CreateGame(BlinkerAutoStart());
 
         var gotDelta = await observer.WaitFor(o =>
-            o.Deltas.Any(d => d.Births.Count > 0 && d.Deaths.Count > 0));
+            o.Deltas.Any(d => d.BirthsX.Length > 0 && d.DeathsX.Length > 0));
         Assert.True(gotDelta, "expected at least one non-empty births/deaths delta");
 
-        var delta = observer.Deltas.First(d => d.Births.Count > 0);
+        var delta = observer.Deltas.First(d => d.BirthsX.Length > 0);
         Assert.True(delta.ToGen > delta.FromGen);
+        // Columnar invariant: each axis array pairs element-wise.
+        Assert.Equal(delta.BirthsX.Length, delta.BirthsY.Length);
+        Assert.Equal(delta.DeathsX.Length, delta.DeathsY.Length);
     }
 
     [Fact]
@@ -125,21 +128,21 @@ public class ObserverProtocolTests
         await observer.WaitFor(o => o.Deltas.Count(d => d.FromGen >= baseGen) >= 3);
 
         // Reconstruct: start from the snapshot, discard deltas at or before B, apply the rest in order.
-        var live = snapshot.Cells.Select(c => (c.X, c.Y)).ToHashSet();
+        var live = snapshot.Cells.Select(c => c.ToCell()).ToHashSet();
         var applicable = observer.Deltas.Where(d => d.ToGen > baseGen).OrderBy(d => d.FromGen).ToList();
 
         var expectedFrom = baseGen;
         foreach (var delta in applicable)
         {
             Assert.Equal(expectedFrom, delta.FromGen); // no gap — deltas chain
-            foreach (var death in delta.Deaths) live.Remove((death.X, death.Y));
-            foreach (var birth in delta.Births) live.Add((birth.X, birth.Y));
+            foreach (var death in delta.DeathCells()) live.Remove(death);
+            foreach (var birth in delta.BirthCells()) live.Add(birth);
             expectedFrom = delta.ToGen;
         }
 
         // The reconstructed set must equal a fresh snapshot at the final generation.
         var finalSnapshot = await (await ctx.GetSnapshot()).Content.ReadFromJsonAsync<SnapshotResponse>(ApiTestContext.Json);
-        var expected = finalSnapshot!.Cells.Select(c => (c.X, c.Y)).ToHashSet();
+        var expected = finalSnapshot!.Cells.Select(c => c.ToCell()).ToHashSet();
         Assert.Equal(expected, live);
         Assert.Equal(finalSnapshot.Gen, expectedFrom);
     }

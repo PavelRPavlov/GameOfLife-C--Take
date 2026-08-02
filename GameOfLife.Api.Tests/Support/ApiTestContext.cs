@@ -98,7 +98,7 @@ public sealed class ApiTestContext : IAsyncDisposable
                 options.Transports = HttpTransportType.LongPolling;
                 options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
             })
-            .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+            .AddMessagePackProtocol(o => o.SerializerOptions = GameMessagePack.SerializerOptions)
             .Build();
 
         var observer = new ObserverClient(connection);

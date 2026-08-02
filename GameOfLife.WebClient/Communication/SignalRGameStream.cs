@@ -1,3 +1,6 @@
+using MessagePack;
+using MessagePack.Resolvers;
+
 namespace GameOfLife.WebClient.Communication;
 
 /// <summary>
@@ -30,12 +33,16 @@ public sealed class SignalRGameStream : IGameStream
         _hub = new HubConnectionBuilder()
             .WithUrl(hubUrl)
             .WithAutomaticReconnect(ReconnectDelays)
-            // Match the server's JSON protocol: enums cross the wire as their member names ("Running", ...).
-            .AddJsonProtocol(options =>
-                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+            // Match the server's binary MessagePack protocol (GameMessagePack on the backend): contractless
+            // records, GameStatus by value, coordinates as native ulong. These options must stay in lockstep
+            // with the server's — see GameOfLife.Api/Game/GameMessagePack.cs.
+            .AddMessagePackProtocol(options =>
+                options.SerializerOptions = MessagePackSerializerOptions.Standard
+                    .WithResolver(ContractlessStandardResolver.Instance)
+                    .WithSecurity(MessagePackSecurity.UntrustedData))
             .Build();
 
-        _hub.On<DeltaPushDto>("ReceiveDelta", dto => DeltaReceived?.Invoke(ToDelta(dto)));
+        _hub.On<DeltaPushDto>("ReceiveDelta", dto => DeltaReceived?.Invoke(dto.ToDomain()));
         _hub.On<GameStatus>("ReceiveStatus", status => StatusReceived?.Invoke(status));
 
         _hub.Reconnecting += _ => Raise(StreamConnectionState.Reconnecting);
@@ -52,11 +59,4 @@ public sealed class SignalRGameStream : IGameStream
         ConnectionStateChanged?.Invoke(state);
         return Task.CompletedTask;
     }
-
-    private static Delta ToDelta(DeltaPushDto dto) =>
-        new(
-            dto.FromGen,
-            dto.ToGen,
-            dto.Births.Select(c => c.ToDomain()).ToList(),
-            dto.Deaths.Select(c => c.ToDomain()).ToList());
 }
