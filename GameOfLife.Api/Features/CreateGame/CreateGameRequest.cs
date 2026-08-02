@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using GameOfLife.Api.Configuration;
 using GameOfLife.Api.Contracts;
 using GameOfLife.Api.Errors;
 using GameOfLife.Api.Game;
@@ -9,11 +10,12 @@ using GameOfLife.Core;
 namespace GameOfLife.Api.Features.CreateGame;
 
 /// <summary>
-/// The <c>POST /game</c> request. Every field is hard-required with no server-side defaults, so
-/// the world a caller gets is exactly and only what they specified. Unknown/extra properties are
-/// rejected (<see cref="JsonUnmappedMemberHandlingAttribute"/>), so a malformed or mis-versioned
-/// request fails loudly. Fields are nullable purely so a <em>missing</em> field is distinguishable
-/// from a supplied value and caught by <see cref="RequiredAttribute"/>.
+/// The <c>POST /game</c> request. Every field is hard-required <em>except</em> <see cref="Rule"/>,
+/// which falls back to the configured <see cref="GameOptions.DefaultRule"/> when omitted; every other
+/// field the caller must specify exactly. Unknown/extra properties are rejected
+/// (<see cref="JsonUnmappedMemberHandlingAttribute"/>), so a malformed or mis-versioned request fails
+/// loudly. Fields are nullable purely so a <em>missing</em> field is distinguishable from a supplied
+/// value and caught by <see cref="RequiredAttribute"/> (or, for <see cref="Rule"/>, defaulted).
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateGameRequest : IValidatableObject
@@ -30,8 +32,10 @@ public sealed record CreateGameRequest : IValidatableObject
     [Required(ErrorMessage = ErrorMessages.AutoStartRequired)]
     public bool? AutoStart { get; init; }
 
-    /// <summary>B/S rulestring, e.g. "B3/S23". B0 is rejected.</summary>
-    [Required(ErrorMessage = ErrorMessages.RuleRequired)]
+    /// <summary>
+    /// B/S rulestring, e.g. "B3/S23". B0 is rejected. Optional: when omitted, the server applies the
+    /// configured <see cref="GameOptions.DefaultRule"/>.
+    /// </summary>
     public string? Rule { get; init; }
 
     /// <summary>Generations per second, inclusive range 0.1 .. 200.</summary>
@@ -63,9 +67,10 @@ public sealed record CreateGameRequest : IValidatableObject
 
     /// <summary>
     /// Projects a request that has already passed validation into the domain values the engine needs.
-    /// Throws if called on an unvalidated/invalid request.
+    /// A missing <see cref="Rule"/> falls back to <paramref name="options"/>.<see cref="GameOptions.DefaultRule"/>
+    /// (itself validated at startup). Throws if called on an unvalidated/invalid request.
     /// </summary>
-    public GameParameters ToParameters()
+    public GameParameters ToParameters(GameOptions options)
     {
         if (!SeedGrid.TryDecode(Seed!, out var seedBytes))
             throw new InvalidOperationException("ToParameters called on an invalid request (seed).");
@@ -73,7 +78,7 @@ public sealed record CreateGameRequest : IValidatableObject
             throw new InvalidOperationException("ToParameters called on an invalid request (origin).");
 
         var cells = SeedGrid.ToCells(seedBytes, originX, originY);
-        var rule = Core.Rule.Parse(Rule!);
+        var rule = Core.Rule.Parse(Rule ?? options.DefaultRule);
         return new GameParameters(cells, rule, TickRate!.Value, AutoStart!.Value);
     }
 

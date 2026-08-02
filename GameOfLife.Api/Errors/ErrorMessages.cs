@@ -65,7 +65,6 @@ internal static class ErrorMessages
     public const string AutoStartRequired =
         "Please choose whether the game should start automatically.";
 
-    public const string RuleRequired = "A rule is required.";
     public const string RuleInvalid =
         "That rule isn't valid. Use a birth/survival rule like \"B3/S23\" — birth on 0 neighbours isn't allowed.";
 

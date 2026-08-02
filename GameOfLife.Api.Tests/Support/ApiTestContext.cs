@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GameOfLife.Api.Tests.Support;
@@ -26,17 +27,21 @@ public sealed class ApiTestContext : IAsyncDisposable
     private readonly List<HubConnection> _connections = [];
 
     /// <summary>Parameterless entry point used both directly and by the Reqnroll BoDi container.</summary>
-    public ApiTestContext() : this(null, false) { }
+    public ApiTestContext() : this(null, false, null) { }
 
     /// <summary>
-    /// Builds a context pinned to a specific environment and, optionally, with the test-only throwing
-    /// route wired in — used by exception-handling tests. A static factory (not a public constructor)
-    /// so the BoDi container keeps seeing only the parameterless constructor it can resolve.
+    /// Builds a context pinned to a specific environment, optionally with the test-only throwing route
+    /// wired in (exception-handling tests) and/or in-memory configuration overrides (options tests). A
+    /// static factory (not a public constructor) so the BoDi container keeps seeing only the
+    /// parameterless constructor it can resolve.
     /// </summary>
-    public static ApiTestContext Create(string? environment = null, bool withThrowingEndpoint = false) =>
-        new(environment, withThrowingEndpoint);
+    public static ApiTestContext Create(
+        string? environment = null,
+        bool withThrowingEndpoint = false,
+        IReadOnlyDictionary<string, string?>? settings = null) =>
+        new(environment, withThrowingEndpoint, settings);
 
-    private ApiTestContext(string? environment, bool withThrowingEndpoint)
+    private ApiTestContext(string? environment, bool withThrowingEndpoint, IReadOnlyDictionary<string, string?>? settings)
     {
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -44,6 +49,11 @@ public sealed class ApiTestContext : IAsyncDisposable
             // environment explicitly (e.g. "Production") rather than depending on the host default.
             if (environment is not null)
                 builder.UseEnvironment(environment);
+
+            // In-memory overrides win over the appsettings files, so options tests pin exact config
+            // (e.g. "Game:DefaultRule") without depending on which environment file is loaded.
+            if (settings is not null)
+                builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(settings));
 
             // A test-only route that throws, injected so an unhandled exception can be driven through
             // the real pipeline. Never added to the shipped API.
@@ -55,6 +65,9 @@ public sealed class ApiTestContext : IAsyncDisposable
     }
 
     public HttpClient Client { get; }
+
+    /// <summary>The host's service provider, for resolving bound options in tests.</summary>
+    public IServiceProvider Services => _factory.Services;
 
     /// <summary>Creates a game via <c>POST /game</c>, asserting success, and returns the response.</summary>
     public async Task<CreateGameResponse> CreateGameAsync(string? body = null)

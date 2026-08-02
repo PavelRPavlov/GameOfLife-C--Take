@@ -15,4 +15,8 @@
       <ProjectReference Include="..\GameOfLife.Shared\GameOfLife.Shared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <InternalsVisibleTo Include="GameOfLife.Api.Tests" />
+    </ItemGroup>
+
 </Project>

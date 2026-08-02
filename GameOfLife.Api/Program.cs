@@ -1,11 +1,14 @@
 using GameOfLife.Api.Composition;
+using GameOfLife.Api.Configuration;
 using GameOfLife.Api.Game;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Service configuration: the game kernel registers its own runtime (host, broadcast loop, SignalR),
-// the API surface registers the REST/OpenAPI/CORS edge.
+// Service configuration: backend settings bind (and validate at startup) from appsettings; the game
+// kernel registers its own runtime (host, broadcast loop, SignalR); the API surface registers the
+// REST/OpenAPI/CORS edge.
 builder.Services
+    .AddGameOptions(builder.Configuration)
     .AddGame()
     .AddGameApiSurface(builder.Configuration);
 

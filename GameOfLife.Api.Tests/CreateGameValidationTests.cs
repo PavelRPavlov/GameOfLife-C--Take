@@ -81,14 +81,14 @@ public class CreateGameValidationTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var error = await response.ReadErrorAsync(ErrorCodes.ValidationFailed);
         var fields = error.Errors.Select(e => e.Field).ToHashSet();
-        Assert.Equal(new HashSet<string?> { "seed", "origin", "autoStart", "rule", "tickRate" }, fields);
+        // rule is optional (falls back to the configured default), so it never appears as missing.
+        Assert.Equal(new HashSet<string?> { "seed", "origin", "autoStart", "tickRate" }, fields);
     }
 
     [Theory]
     [InlineData("\"seed\"", "seed")]
     [InlineData("\"origin\"", "origin")]
     [InlineData("\"autoStart\"", "autoStart")]
-    [InlineData("\"rule\"", "rule")]
     [InlineData("\"tickRate\"", "tickRate")]
     public async Task Missing_required_field_maps_to_VALIDATION_FAILED_with_that_field(string quotedField, string expectedField)
     {

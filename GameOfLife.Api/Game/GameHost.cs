@@ -15,9 +15,6 @@ namespace GameOfLife.Api.Game;
 /// </summary>
 public sealed class GameHost
 {
-    /// <summary>Server-wide broadcast cadence (a coalesced net snapshot-diff over this interval).</summary>
-    public static readonly TimeSpan BroadcastInterval = TimeSpan.FromMilliseconds(100);
-
     /// <summary>Relative URL of the SignalR hub, handed to clients in the create response.</summary>
     public const string HubUrl = "/hubs/game";
 

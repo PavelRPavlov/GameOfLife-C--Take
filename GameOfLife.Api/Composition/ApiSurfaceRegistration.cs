@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using GameOfLife.Api.Configuration;
 
 namespace GameOfLife.Api.Composition;
 
@@ -21,16 +22,15 @@ public static class ApiSurfaceRegistration
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
         // The Blazor Wasm client is served from a separate origin, so it needs CORS to reach this API
-        // and, later, the SignalR hub. Origins are configurable ("Cors:AllowedOrigins"); the defaults
-        // are the WebClient dev URLs. AllowCredentials (needed for the SignalR websocket) forbids a
-        // wildcard origin, so the origins are listed explicitly; AllowAnyHeader lets the
-        // X-Admin-Secret control header through.
-        var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-            ?? ["http://localhost:5292", "https://localhost:7079"];
+        // and, later, the SignalR hub. Origins come from the "Cors" section (per-environment in
+        // appsettings.{Environment}.json) and are validated non-empty at startup by CorsOptionsValidator.
+        // AllowCredentials (needed for the SignalR websocket) forbids a wildcard origin, so the origins
+        // are listed explicitly; AllowAnyHeader lets the X-Admin-Secret control header through.
+        var corsOptions = configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
 
         services.AddCors(options =>
             options.AddPolicy(WasmCorsPolicy, policy => policy
-                .WithOrigins(allowedOrigins)
+                .WithOrigins(corsOptions.AllowedOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials()));
