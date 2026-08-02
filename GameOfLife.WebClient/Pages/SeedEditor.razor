@@ -66,18 +66,6 @@
                 }
             </div>
 
-            <div class="seed-group seed-import">
-                <label class="seed-group-title" for="rle">Import RLE / plaintext</label>
-                <textarea id="rle" class="seed-rle" @bind="_rle" placeholder="bo$2bo$3o!   or   .O./..O/OOO"></textarea>
-                <div class="seed-import-row">
-                    <button type="button" class="seed-tool" @onclick="ParseImport">Load to grid</button>
-                    @if (_clamped)
-                    {
-                        <span class="seed-warn">Some cells were outside the 100×100 grid and dropped.</span>
-                    }
-                </div>
-            </div>
-
             @* Host-supplied secondary knobs, parked at the very bottom of the column below the everyday tools. *@
             @if (Advanced is not null)
             {
@@ -105,9 +93,6 @@
     private const string SavedSeedKey = "gol.seed";
     private bool _hasSaved;
     private string? _seedMsg;
-
-    private string _rle = "";
-    private bool _clamped;
 
     /// <summary>Raised after any board change so the parent can re-evaluate its Create affordance.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -216,14 +201,6 @@
 
         _seedMsg = "Loaded the saved seed.";
         await PushAsync();
-    }
-
-    private Task ParseImport()
-    {
-        var result = SeedText.Parse(_rle);
-        _clamped = result.Clamped;
-        _board.Load(result.Cells);
-        return PushAsync();
     }
 
     // Push the authoritative board to the canvas after a bulk op, then notify the parent.

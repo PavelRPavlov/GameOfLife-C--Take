@@ -506,26 +506,3 @@ button.link {
         width: min(100%, calc(100vh - 3rem - 2px));
     }
 }
-
-.seed-rle {
-    width: 100%;
-    height: 3.5rem;
-    font-family: monospace;
-    font-size: 0.8rem;
-    padding: 0.3rem 0.4rem;
-    border: 1px solid #ccc;
-    border-radius: 0.25rem;
-}
-
-.seed-import-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.3rem;
-    flex-wrap: wrap;
-}
-
-.seed-warn {
-    font-size: 0.75rem;
-    color: #664d03;
-}
