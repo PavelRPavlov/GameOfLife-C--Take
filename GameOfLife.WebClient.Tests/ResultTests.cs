@@ -49,4 +49,16 @@ public sealed class ResultTests
             .Bind(v => Result<string, GameError>.Ok($"n{v}"));
         Assert.IsType<GameError.InvalidState>(shorted.Error);
     }
+
+    [Fact]
+    public void Void_Match_runs_the_matching_side_effect_for_each_case()
+    {
+        string? ranWith = null;
+
+        Result<int, GameError>.Ok(7).Match(v => ranWith = $"ok:{v}", _ => ranWith = "err");
+        Assert.Equal("ok:7", ranWith);
+
+        Result<int, GameError>.Err(new GameError.NoGame("no game")).Match(_ => ranWith = "ok", e => ranWith = $"err:{e.Message}");
+        Assert.Equal("err:no game", ranWith);
+    }
 }

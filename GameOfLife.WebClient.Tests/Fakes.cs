@@ -60,8 +60,13 @@ internal sealed class FakeGameStream : IGameStream
 
     public bool Connected { get; private set; }
 
+    /// <summary>When set, <see cref="ConnectAsync"/> faults with this instead of connecting.</summary>
+    public Exception? ConnectException { get; set; }
+
     public Task ConnectAsync(CancellationToken ct = default)
     {
+        if (ConnectException is not null)
+            return Task.FromException(ConnectException);
         Connected = true;
         return Task.CompletedTask;
     }

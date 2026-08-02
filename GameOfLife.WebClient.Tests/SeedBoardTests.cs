@@ -132,6 +132,32 @@ public class SeedBoardTests
         Assert.True(board.Get(ox + 1, ox + 1));
     }
 
+    [Theory]
+    [InlineData(0.0)] // density 0 → no cell alive
+    [InlineData(1.0)] // density 1 → every cell alive
+    public void Randomize_AtExtremeDensities_FillsPredictably(double density)
+    {
+        var board = new SeedBoard();
+        board.Set(0, 0, true); // pre-existing state must be overwritten
+
+        board.Randomize(new Random(1234), density);
+
+        var expected = density >= 1.0 ? SeedBoard.Size * SeedBoard.Size : 0;
+        Assert.Equal(expected, board.AliveCount);
+    }
+
+    [Fact]
+    public void Randomize_AliveCount_MatchesTheEncodedBits()
+    {
+        var board = new SeedBoard();
+        board.Randomize(new Random(42), 0.5);
+
+        // The incrementally-tracked count must equal the actual set bits in the packing.
+        var setBits = board.ToPackedBytes().Sum(b => System.Numerics.BitOperations.PopCount(b));
+        Assert.Equal(setBits, board.AliveCount);
+        Assert.InRange(board.AliveCount, 1, SeedBoard.Size * SeedBoard.Size - 1); // ~half, so neither extreme
+    }
+
     [Fact]
     public void Load_ReplacesTheBoard()
     {

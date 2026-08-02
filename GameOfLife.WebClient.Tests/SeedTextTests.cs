@@ -40,6 +40,16 @@ public class SeedTextTests
     }
 
     [Fact]
+    public void Rle_WithoutTerminator_ParsesThroughToTheEnd()
+    {
+        // No trailing '!': the parser must still return the cells accumulated up to the end of input.
+        var result = SeedText.Parse("bo$2bo$3o");
+
+        Assert.False(result.Clamped);
+        Assert.Equal(Glider, result.Cells.ToHashSet());
+    }
+
+    [Fact]
     public void Plaintext_DecodesAGlider()
     {
         var result = SeedText.Parse(".O.\n..O\nOOO");

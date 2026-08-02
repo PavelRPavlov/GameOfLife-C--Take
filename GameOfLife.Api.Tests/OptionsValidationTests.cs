@@ -42,6 +42,41 @@ public class OptionsValidationTests
         Assert.True(result.Failed);
     }
 
+    [Theory]
+    [InlineData("UInt64")]
+    [InlineData("ulong")]
+    [InlineData("UInt32")]
+    [InlineData("uint")]
+    [InlineData("UInt16")]
+    [InlineData("ushort")]
+    [InlineData("Byte")]
+    [InlineData("byte")]
+    public void Wrap_capable_coordinate_type_passes(string coordinateType)
+    {
+        var result = GameValidator.Validate(null,
+            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, CoordinateType = coordinateType });
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("Int64")]    // signed
+    [InlineData("long")]     // signed
+    [InlineData("int")]      // signed
+    [InlineData("UInt128")]  // wider than the ulong coordinate can hold
+    [InlineData("decimal")]  // non-integer
+    [InlineData("float")]    // non-integer
+    [InlineData("string")]   // not a number
+    [InlineData("")]         // empty
+    [InlineData("nonsense")] // unknown
+    public void Non_wrap_capable_coordinate_type_fails(string coordinateType)
+    {
+        var result = GameValidator.Validate(null,
+            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, CoordinateType = coordinateType });
+
+        Assert.True(result.Failed);
+    }
+
     [Fact]
     public void Empty_allowed_origins_fails()
     {

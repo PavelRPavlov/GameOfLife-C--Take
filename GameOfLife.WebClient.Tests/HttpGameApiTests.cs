@@ -52,6 +52,8 @@ public class HttpGameApiTests
         Assert.True(result.IsSuccess);
         Assert.Equal("the-secret", result.Value.Secret);
         Assert.Equal(GameStatus.Created, result.Value.Status);
+        Assert.Equal(0, result.Value.Generation);
+        Assert.Equal(5.0, result.Value.TickRate);
         Assert.Equal("B3/S23", result.Value.Rule);
 
         // Body carries the origin as decimal strings, and no extra properties.
@@ -95,9 +97,11 @@ public class HttpGameApiTests
 
     [Theory]
     [InlineData("not-base64!!", "B3/S23", 5.0)]      // bad seed
+    [InlineData("", "B3/S23", 5.0)]                    // empty seed — the IsValidSeed null/empty guard
     [InlineData(null, "B0/S23", 5.0)]                 // B0 rejected
     [InlineData(null, "B3/S23", 0.0)]                 // tick-rate below range
     [InlineData(null, "B3/S23", 201.0)]               // tick-rate above range
+    [InlineData(null, "B3/S23", double.NaN)]          // NaN tick-rate rejected
     [InlineData(null, "B33/S23", 5.0)]                // repeated digit in a group
     public async Task CreateGame_invalid_request_short_circuits_without_calling_backend(
         string? seed, string rule, double tickRate)
@@ -109,6 +113,33 @@ public class HttpGameApiTests
 
         Assert.IsType<GameError.ValidationRejected>(result.Error);
         Assert.Equal(0, handler.CallCount); // never hit the wire
+    }
+
+    [Theory]
+    [InlineData("resume", "/resume")]
+    [InlineData("step", "/step")]
+    public async Task Control_verb_hits_its_own_route(string _, string expectedPath)
+    {
+        var (api, handler, _2) = NewApi();
+        handler.Respond(HttpStatusCode.OK, """{"status":"Running","generation":1}""");
+
+        // Cover the resume/step delegates specifically (start/stop/pause are covered elsewhere).
+        var result = expectedPath == "/resume" ? await api.ResumeAsync() : await api.StepAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expectedPath, handler.LastPath);
+    }
+
+    [Fact]
+    public async Task A_cancelled_token_propagates_the_cancellation_rather_than_a_transport_error()
+    {
+        var (api, _, _2) = NewApi();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Cancellation via the caller's token must surface as OperationCanceledException, never be
+        // swallowed into a GameError.Transport result.
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => api.GetSnapshotAsync(cts.Token));
     }
 
     [Fact]

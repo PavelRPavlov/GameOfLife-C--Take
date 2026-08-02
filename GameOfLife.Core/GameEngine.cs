@@ -14,21 +14,32 @@ namespace GameOfLife.Core;
 public sealed class GameEngine
 {
     private readonly Lock _sync = new();
+    private readonly Universe _universe;
     private Generation _current;
 
-    /// <summary>Creates an engine seeded with <paramref name="seed"/> at generation 0.</summary>
+    /// <summary>Creates an engine seeded with <paramref name="seed"/> at generation 0 on the full 2^64 torus.</summary>
     public GameEngine(IEnumerable<Cell> seed, Rule rule)
+        : this(seed, rule, Universe.Full)
+    {
+    }
+
+    /// <summary>Creates an engine seeded with <paramref name="seed"/> at generation 0 on <paramref name="universe"/>.</summary>
+    public GameEngine(IEnumerable<Cell> seed, Rule rule, Universe universe)
     {
         ArgumentNullException.ThrowIfNull(seed);
         ArgumentNullException.ThrowIfNull(rule);
 
         Rule = rule;
+        _universe = universe;
         var live = new HashSet<Cell>(seed);
         _current = new Generation(0, live, [], []);
     }
 
     /// <summary>The rule this engine applies, fixed for its lifetime.</summary>
     public Rule Rule { get; }
+
+    /// <summary>The torus this engine wraps coordinates onto, fixed for its lifetime.</summary>
+    public Universe Universe => _universe;
 
     /// <summary>The most recently published generation. Safe to read from any thread.</summary>
     public Generation Current
@@ -49,13 +60,13 @@ public sealed class GameEngine
         // Single writer: only Advance mutates _current, so reading the previous generation here
         // needs no lock. The next generation is published under _sync so readers get a happens-before.
         var previous = _current;
-        var next = ComputeNext(previous, Rule);
+        var next = ComputeNext(previous, Rule, _universe);
         lock (_sync)
             _current = next;
         return next;
     }
 
-    private static Generation ComputeNext(Generation previous, Rule rule)
+    private static Generation ComputeNext(Generation previous, Rule rule, Universe universe)
     {
         var live = previous.LiveCells;
 
@@ -65,7 +76,7 @@ public sealed class GameEngine
         var neighbourCounts = new Dictionary<Cell, int>(live.Count * 4);
         foreach (var cell in live)
         {
-            foreach (var neighbour in Neighbours(cell))
+            foreach (var neighbour in Neighbours(cell, universe))
             {
                 neighbourCounts.TryGetValue(neighbour, out var count);
                 neighbourCounts[neighbour] = count + 1;
@@ -101,18 +112,20 @@ public sealed class GameEngine
     }
 
     /// <summary>
-    /// The 8 Moore neighbours of <paramref name="cell"/>. Wraparound is free — unchecked
-    /// <see cref="ulong"/> addition of (ulong)(-1) == ulong.MaxValue is already mod 2^64.
+    /// The 8 Moore neighbours of <paramref name="cell"/>, each wrapped onto <paramref name="universe"/>.
+    /// Wraparound stays a single mask: unchecked <see cref="ulong"/> addition of (ulong)(-1) ==
+    /// ulong.MaxValue is already mod 2^64, and <see cref="Universe.Wrap"/> then folds it onto the
+    /// configured torus width (a no-op for the default 2^64 universe).
     /// </summary>
-    private static IEnumerable<Cell> Neighbours(Cell cell)
+    private static IEnumerable<Cell> Neighbours(Cell cell, Universe universe)
     {
         for (var dx = -1; dx <= 1; dx++)
         for (var dy = -1; dy <= 1; dy++)
         {
             if (dx == 0 && dy == 0) continue;
             yield return new Cell(
-                unchecked(cell.X + (ulong)dx),
-                unchecked(cell.Y + (ulong)dy));
+                universe.Wrap(unchecked(cell.X + (ulong)dx)),
+                universe.Wrap(unchecked(cell.Y + (ulong)dy)));
         }
     }
 }

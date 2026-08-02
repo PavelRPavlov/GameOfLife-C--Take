@@ -14,9 +14,9 @@ internal sealed class GameSession
     private CancellationTokenSource? _loopCts;
     private Task _loopTask = Task.CompletedTask;
 
-    public GameSession(IReadOnlyCollection<Cell> seed, Rule rule, double tickRate, bool autoStart)
+    public GameSession(IReadOnlyCollection<Cell> seed, Rule rule, double tickRate, bool autoStart, Universe universe)
     {
-        _engine = new GameEngine(seed, rule);
+        _engine = new GameEngine(seed, rule, universe);
         Rule = rule;
         TickRate = tickRate;
         _period = TimeSpan.FromSeconds(1.0 / tickRate);

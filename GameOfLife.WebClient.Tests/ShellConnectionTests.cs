@@ -114,6 +114,35 @@ public class ShellConnectionTests
     }
 
     [Fact]
+    public async Task Initialize_when_the_stream_cannot_connect_lands_disconnected()
+    {
+        var (shell, api, stream, _) = Build();
+        stream.ConnectException = new InvalidOperationException("transport unavailable");
+        // A status result is enqueued but must never be consulted — the connect fails first.
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
+
+        await shell.InitializeAsync();
+
+        Assert.Equal(ShellPhase.Disconnected, shell.Phase);
+        Assert.Equal(0, api.SnapshotCalls); // never reached the status fetch
+    }
+
+    [Fact]
+    public async Task Disposing_the_shell_stops_reacting_to_connection_state()
+    {
+        var (shell, api, stream, _) = Build();
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
+        await shell.InitializeAsync();
+        Assert.Equal(ShellPhase.Ready, shell.Phase);
+
+        shell.Dispose();
+
+        // After disposal a dropped transport must not move the shell off Ready.
+        stream.PushConnectionState(StreamConnectionState.Reconnecting);
+        Assert.Equal(ShellPhase.Ready, shell.Phase);
+    }
+
+    [Fact]
     public async Task Reconnect_recovery_catches_a_game_created_while_away()
     {
         var (shell, api, stream, _) = Build();

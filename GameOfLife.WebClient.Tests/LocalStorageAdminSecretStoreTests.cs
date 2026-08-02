@@ -1,0 +1,132 @@
+using GameOfLife.WebClient.Communication;
+using Microsoft.JSInterop;
+
+namespace GameOfLife.WebClient.Tests;
+
+/// <summary>
+/// Drives <see cref="LocalStorageAdminSecretStore"/> against a fake in-process JS runtime standing in
+/// for the browser's <c>localStorage</c>: synchronous hydration on first read, write-through on
+/// set/clear, the <see cref="IAdminSecretStore.Changed"/> notification, and the graceful degradation
+/// when the runtime is not in-process (pre-hydration, e.g. server prerender).
+/// </summary>
+public sealed class LocalStorageAdminSecretStoreTests
+{
+    [Fact]
+    public void Current_hydrates_from_localStorage_on_first_read()
+    {
+        var js = new FakeInProcessJsRuntime();
+        js.Storage["gol.adminSecret"] = "persisted-secret";
+        var store = new LocalStorageAdminSecretStore(js);
+
+        Assert.True(store.HasSecret);
+        Assert.Equal("persisted-secret", store.Current);
+        Assert.Equal(1, js.GetItemCalls); // hydrated once, then cached
+        _ = store.Current;
+        Assert.Equal(1, js.GetItemCalls); // second read serves the cache — no re-hydration
+    }
+
+    [Fact]
+    public void Current_is_null_when_localStorage_is_empty()
+    {
+        var store = new LocalStorageAdminSecretStore(new FakeInProcessJsRuntime());
+
+        Assert.False(store.HasSecret);
+        Assert.Null(store.Current);
+    }
+
+    [Fact]
+    public async Task SetAsync_writes_through_caches_and_raises_Changed()
+    {
+        var js = new FakeInProcessJsRuntime();
+        var store = new LocalStorageAdminSecretStore(js);
+        var changes = 0;
+        store.Changed += () => changes++;
+
+        await store.SetAsync("fresh-secret");
+
+        Assert.Equal("fresh-secret", js.Storage["gol.adminSecret"]); // written through to localStorage
+        Assert.Equal("fresh-secret", store.Current);                  // cached — no getItem needed
+        Assert.Equal(0, js.GetItemCalls);
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public async Task ClearAsync_removes_the_key_caches_null_and_raises_Changed()
+    {
+        var js = new FakeInProcessJsRuntime();
+        js.Storage["gol.adminSecret"] = "to-be-cleared";
+        var store = new LocalStorageAdminSecretStore(js);
+        var changes = 0;
+        store.Changed += () => changes++;
+
+        await store.ClearAsync();
+
+        Assert.False(js.Storage.ContainsKey("gol.adminSecret")); // removed from localStorage
+        Assert.False(store.HasSecret);
+        Assert.Null(store.Current);
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void Current_stays_null_when_the_runtime_is_not_in_process()
+    {
+        // A non-in-process runtime (e.g. prerender): the synchronous read is skipped, so nothing hydrates.
+        var store = new LocalStorageAdminSecretStore(new FakeAsyncOnlyJsRuntime());
+
+        Assert.False(store.HasSecret);
+        Assert.Null(store.Current);
+    }
+
+    /// <summary>An in-memory stand-in for the Wasm in-process runtime backed by a dictionary.</summary>
+    private sealed class FakeInProcessJsRuntime : IJSInProcessRuntime
+    {
+        public Dictionary<string, string> Storage { get; } = new();
+        public int GetItemCalls { get; private set; }
+
+        public TResult Invoke<TResult>(string identifier, params object?[]? args)
+        {
+            if (identifier == "localStorage.getItem")
+            {
+                GetItemCalls++;
+                var key = (string)args![0]!;
+                var value = Storage.TryGetValue(key, out var v) ? v : null;
+                return (TResult)(object?)value!;
+            }
+            throw new NotSupportedException(identifier);
+        }
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+        {
+            ApplyVoid(identifier, args);
+            return new ValueTask<TValue>(default(TValue)!);
+        }
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+            => InvokeAsync<TValue>(identifier, args);
+
+        private void ApplyVoid(string identifier, object?[]? args)
+        {
+            switch (identifier)
+            {
+                case "localStorage.setItem":
+                    Storage[(string)args![0]!] = (string)args[1]!;
+                    break;
+                case "localStorage.removeItem":
+                    Storage.Remove((string)args![0]!);
+                    break;
+                default:
+                    throw new NotSupportedException(identifier);
+            }
+        }
+    }
+
+    /// <summary>An async-only runtime (not <see cref="IJSInProcessRuntime"/>) — the pre-hydration case.</summary>
+    private sealed class FakeAsyncOnlyJsRuntime : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+            => new(default(TValue)!);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+            => new(default(TValue)!);
+    }
+}

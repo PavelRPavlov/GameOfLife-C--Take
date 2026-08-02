@@ -19,4 +19,13 @@ public sealed class GameOptions
 
     /// <summary>Server-wide broadcast cadence in milliseconds (a coalesced net snapshot-diff per interval).</summary>
     public int BroadcastIntervalMs { get; init; }
+
+    /// <summary>
+    /// The unsigned integer coordinate type that fixes the torus size (2^width per axis): e.g.
+    /// <c>UInt64</c> for the default 2^64 world, or <c>Byte</c>/<c>UInt16</c>/<c>UInt32</c> for a
+    /// smaller, wrap-testable one. Validated at startup against the wrap-capable types
+    /// (<see cref="GameOfLife.Core.Universe.TryParseCoordinateType"/>): only unsigned integer types
+    /// wrap with a single mask like <see cref="ulong"/> does, so anything else fails the host at boot.
+    /// </summary>
+    public string CoordinateType { get; init; } = "UInt64";
 }

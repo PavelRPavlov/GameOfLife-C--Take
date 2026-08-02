@@ -27,6 +27,9 @@ public class GameEngineTheoryTests
         var seed = FirstNeighbours(center, neighbours);
         var engine = new GameEngine(seed, Rule.Parse("B3/S23"));
 
+        // The parameterless ctor wraps coordinates onto the full 2^64 torus.
+        Assert.Equal(Universe.Full, engine.Universe);
+
         var next = engine.Advance();
 
         Assert.Equal(expectedBorn, next.LiveCells.Contains(center));

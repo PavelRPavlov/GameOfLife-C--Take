@@ -14,6 +14,16 @@ public static class GameServiceCollectionExtensions
             .AddJsonProtocol(options =>
                 options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
+        // The torus every game runs on, resolved once from the (already startup-validated) coordinate
+        // type. Validation guarantees the parse succeeds; Universe.Full is an unreachable safety net.
+        // Non-generic registration: Universe is a value type, which the generic AddSingleton<T> (which
+        // constrains T to a reference type) cannot accept. The factory boxes it; DI unboxes on inject.
+        services.AddSingleton(typeof(Universe), sp =>
+            Universe.TryParseCoordinateType(
+                sp.GetRequiredService<IOptions<GameOptions>>().Value.CoordinateType, out var universe)
+                ? universe
+                : Universe.Full);
+
         services.AddSingleton<GameHost>();
         services.AddHostedService<BroadcastLoopService>();
 

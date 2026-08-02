@@ -226,4 +226,85 @@ public sealed class GameStoreTests
         Assert.Empty(store.LiveCells);
         Assert.Equal(7, store.Generation); // unchanged by the dropped delta
     }
+
+    [Fact]
+    public async Task Every_control_verb_delegates_and_applies_status_and_generation_on_success()
+    {
+        var (store, api, _, _) = NewStore();
+
+        // Each verb funnels through the same success path (SetStatus + SetGeneration); walk all five so
+        // start/stop/pause/resume/step are each exercised, not just start.
+        api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Running, 3));
+        Assert.True((await store.StartAsync()).IsSuccess);
+        Assert.Equal(GameStatus.Running, store.Status);
+        Assert.Equal(3, store.Generation);
+
+        api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Paused, 3));
+        Assert.True((await store.PauseAsync()).IsSuccess);
+        Assert.Equal(GameStatus.Paused, store.Status);
+
+        api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Running, 3));
+        Assert.True((await store.ResumeAsync()).IsSuccess);
+        Assert.Equal(GameStatus.Running, store.Status);
+
+        api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.Paused, 4));
+        Assert.True((await store.StepAsync()).IsSuccess);
+        Assert.Equal(4, store.Generation); // step advances the generation
+
+        api.ControlResult = Result<ControlOutcome, GameError>.Ok(new ControlOutcome(GameStatus.NoGame, 4));
+        Assert.True((await store.StopAsync()).IsSuccess);
+        Assert.Equal(GameStatus.NoGame, store.Status);
+    }
+
+    [Fact]
+    public async Task HasAdminSecret_reflects_the_secret_store()
+    {
+        var (store, _, _, secret) = NewStore();
+
+        Assert.False(store.HasAdminSecret);
+        await secret.SetAsync("a-secret");
+        Assert.True(store.HasAdminSecret);
+    }
+
+    [Fact]
+    public async Task Attach_failure_on_404_seeds_NoGame_and_leaves_the_store_unobserving()
+    {
+        var (store, api, stream, _) = NewStore();
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.NoGame("no game")));
+
+        var snapshotEvents = 0;
+        store.SnapshotApplied += _ => snapshotEvents++;
+
+        var result = await store.AttachAsync();
+
+        Assert.True(result.IsError);
+        Assert.IsType<GameError.NoGame>(result.Error);
+        Assert.Equal(GameStatus.NoGame, store.Status);
+        Assert.Empty(store.LiveCells);
+        Assert.Equal(0, snapshotEvents); // a failed bootstrap adopts no snapshot
+
+        // The buffer was disarmed and no baseline adopted: a delta racing after the failure is dropped.
+        var applied = 0;
+        store.DeltaApplied += _ => applied++;
+        stream.PushDelta(new Delta(0, 1, [C(1, 1)], []));
+        Assert.Equal(0, applied);
+    }
+
+    [Fact]
+    public async Task Attach_failure_on_transport_error_does_not_seed_NoGame()
+    {
+        var (store, api, _, _) = NewStore();
+        // Start from a known non-default status so a spurious NoGame-seed would be observable.
+        api.EnqueueSnapshot(Snap(5, GameStatus.Running, C(1, 1)));
+        await store.AttachAsync();
+        Assert.Equal(GameStatus.Running, store.Status);
+
+        // A resync/attach transport failure must not overwrite the last-known status with NoGame.
+        api.EnqueueSnapshot(Result<Snapshot, GameError>.Err(new GameError.Transport("offline")));
+        var result = await store.AttachAsync();
+
+        Assert.True(result.IsError);
+        Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal(GameStatus.Running, store.Status); // unchanged — transport failure is not "no game"
+    }
 }

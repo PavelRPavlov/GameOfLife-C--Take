@@ -48,6 +48,7 @@ public class CreateGameValidationTests
     [Theory]
     [InlineData("", "no body at all")]
     [InlineData("not json", "malformed json")]
+    [InlineData("null", "explicit json null deserializes to a null request")]
     public async Task Empty_or_malformed_body_maps_to_MALFORMED_REQUEST_BODY(string json, string _)
     {
         await using var ctx = new ApiTestContext();

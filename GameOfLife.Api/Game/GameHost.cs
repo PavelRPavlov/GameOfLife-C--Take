@@ -17,6 +17,7 @@ public sealed class GameHost
     public const string SnapshotUrl = "/snapshot";
 
     private readonly IHubContext<GameHub, IGameClient> _hub;
+    private readonly Universe _universe;
 
     // Serializes create + control transitions (state machine). The sim loop runs outside this gate.
     private readonly SemaphoreSlim _stateGate = new(1, 1);
@@ -34,7 +35,11 @@ public sealed class GameHost
     private long _lastBroadcastGen = -1;
     private HashSet<Cell> _lastBroadcastLive = [];
 
-    public GameHost(IHubContext<GameHub, IGameClient> hub) => _hub = hub;
+    public GameHost(IHubContext<GameHub, IGameClient> hub, Universe universe)
+    {
+        _hub = hub;
+        _universe = universe;
+    }
 
     /// <summary>
     /// Atomically claims the empty slot with a new game, or refuses if one already exists.
@@ -48,7 +53,7 @@ public sealed class GameHost
             if (_session is not null)
                 return null; // 409 — exactly one game.
 
-            var session = new GameSession(parameters.Seed, parameters.Rule, parameters.TickRate, parameters.AutoStart);
+            var session = new GameSession(parameters.Seed, parameters.Rule, parameters.TickRate, parameters.AutoStart, _universe);
             _session = session;
             // Establish the broadcast baseline at gen 0 (the seed) up front, so the very first
             // delta — including an immediate broadcast from a single-step — is computed and pushed
