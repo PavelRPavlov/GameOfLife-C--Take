@@ -1,32 +1,32 @@
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
+using GameOfLife.Api.Errors;
+using GameOfLife.Shared;
 
 namespace GameOfLife.Api.Composition;
 
 /// <summary>
 /// The last-resort safety net for <em>unexpected</em> exceptions: any exception that reaches the HTTP
-/// pipeline is turned into a generic <c>500</c> <see cref="ProblemDetails"/> (RFC 9457) carrying only a
-/// status, a generic title, and a correlation <c>traceId</c> — never the exception type, message, or
-/// stack. Expected failures (validation, conflict, auth, wrong state) are still handled explicitly at
-/// each endpoint and never reach here; reaching this handler always means an unforeseen fault, which is
-/// always a <c>500</c>. The full exception is logged at <c>Error</c> by the framework's
-/// <c>ExceptionHandlerMiddleware</c>, so this type deliberately does not log — it only shapes the
-/// safe response. It is gated to non-Development environments so the Developer Exception Page keeps
-/// serving full stack traces locally (see <see cref="ApiSurfaceRegistration.UseGameApiPipeline"/>).
+/// pipeline is turned into a generic <c>500</c> carrying the same bespoke <see cref="ErrorEnvelope"/> as
+/// every other failure — <c>{ code: "INTERNAL_ERROR", message: &lt;generic&gt;, errors: [] }</c> as
+/// <c>application/json</c> — never the exception type, message, or stack, and never a <c>traceId</c> or
+/// echoed status. Expected failures (validation, conflict, auth, wrong state) are handled explicitly at
+/// each endpoint and never reach here; reaching this handler always means an unforeseen fault, always a
+/// <c>500</c>. The full exception is still logged at <c>Error</c> by the framework's
+/// <c>ExceptionHandlerMiddleware</c> before this runs, so this handler deliberately does not log — it
+/// only shapes the safe response. It is wired only for non-Development environments so the Developer
+/// Exception Page keeps serving full stack traces locally (see
+/// <see cref="ApiSurfaceRegistration.UseGameApiPipeline"/>).
 /// </summary>
-internal sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
+internal static class GlobalExceptionHandler
 {
-    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    /// <summary>
+    /// The <c>UseExceptionHandler</c> fallback delegate: writes the redacted 500 envelope. The exception
+    /// is never touched, so no detail can reach the body. <c>WriteAsJsonAsync</c> applies the
+    /// application-wide HTTP JSON options (camelCase, string enums) and writes <c>application/json</c>.
+    /// </summary>
+    public static async Task WriteRedactedResponseAsync(HttpContext httpContext)
     {
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-
-        // TryWriteAsync applies the registered ProblemDetails customizations — the generic
-        // status-derived title/type and the traceId extension — and writes application/problem+json.
-        // The exception is intentionally not passed in, so no detail can leak into the body.
-        return await problemDetails.TryWriteAsync(new ProblemDetailsContext
-        {
-            HttpContext = httpContext,
-            ProblemDetails = { Status = StatusCodes.Status500InternalServerError },
-        });
+        await httpContext.Response.WriteAsJsonAsync(
+            new ErrorEnvelope(ErrorCodes.InternalError, ErrorMessages.InternalError, []));
     }
 }

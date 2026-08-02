@@ -132,7 +132,7 @@ public sealed class GameHost
         try
         {
             if (!TryAuthorize(secret, out var session, out var error)) return error;
-            if (requiredState is { } required && session.Status != required) return ControlOutcome.InvalidState;
+            if (requiredState is { } required && session.Status != required) return ControlOutcome.InvalidState(session.Status);
             return await action(session);
         }
         finally

@@ -17,7 +17,7 @@ public sealed class ResultTests
     [Fact]
     public void Err_carries_the_error_and_matches_the_failure_arm()
     {
-        var result = Result<int, GameError>.Err(GameError.NoGame.Instance);
+        var result = Result<int, GameError>.Err(new GameError.NoGame("no game"));
 
         Assert.True(result.IsError);
         Assert.IsType<GameError.NoGame>(result.Error);
@@ -27,7 +27,7 @@ public sealed class ResultTests
     [Fact]
     public void Value_throws_on_a_failure_and_Error_throws_on_a_success()
     {
-        Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Err(GameError.NoGame.Instance).Value);
+        Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Err(new GameError.NoGame("no game")).Value);
         Assert.Throws<InvalidOperationException>(() => Result<int, GameError>.Ok(1).Error);
     }
 
@@ -36,7 +36,7 @@ public sealed class ResultTests
     {
         Assert.Equal(10, Result<int, GameError>.Ok(5).Map(v => v * 2).Value);
         Assert.IsType<GameError.Forbidden>(
-            Result<int, GameError>.Err(GameError.Forbidden.Instance).Map(v => v * 2).Error);
+            Result<int, GameError>.Err(new GameError.Forbidden("forbidden")).Map(v => v * 2).Error);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class ResultTests
         var chained = Result<int, GameError>.Ok(5).Bind(v => Result<string, GameError>.Ok($"n{v}"));
         Assert.Equal("n5", chained.Value);
 
-        var shorted = Result<int, GameError>.Err(GameError.InvalidState.Instance)
+        var shorted = Result<int, GameError>.Err(new GameError.InvalidState("invalid state"))
             .Bind(v => Result<string, GameError>.Ok($"n{v}"));
         Assert.IsType<GameError.InvalidState>(shorted.Error);
     }

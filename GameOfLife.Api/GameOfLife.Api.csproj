@@ -12,6 +12,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\GameOfLife.Core\GameOfLife.Core.csproj" />
+      <ProjectReference Include="..\GameOfLife.Shared\GameOfLife.Shared.csproj" />
     </ItemGroup>
 
 </Project>

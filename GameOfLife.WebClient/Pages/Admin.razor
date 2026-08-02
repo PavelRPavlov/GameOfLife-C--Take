@@ -181,16 +181,18 @@
                 switch (error)
                 {
                     case GameError.AlreadyExists:
+                        // Behavioral flip: the create form yields to the existing-game view.
                         _alreadyExists = true;
                         break;
                     case GameError.ValidationRejected v:
-                        _createError = $"The server rejected the settings: {v.Details}";
-                        break;
-                    case GameError.Transport t:
-                        _createError = $"Couldn't reach the server: {t.Detail}";
+                        // Server owns the copy: top-level message plus the joined per-field summary.
+                        _createError = v.Errors.Count > 0
+                            ? $"{v.Message} {string.Join(" ", v.Errors.Select(e => e.Message))}"
+                            : v.Message;
                         break;
                     default:
-                        _createError = "Couldn't create the game.";
+                        // Every other arm carries a server (or fallback) message shown verbatim.
+                        _createError = error.Message;
                         break;
                 }
             });
@@ -207,14 +209,12 @@
         if (result.IsError)
         {
             // Forbidden means the stored secret was stale — the store cleared it, so re-rendering drops
-            // us to the observer redirect. Other errors surface inline.
+            // us to the observer redirect (suppress the inline message). Every other arm surfaces the
+            // server's message verbatim.
             _controlError = result.Error switch
             {
                 GameError.Forbidden => null,
-                GameError.InvalidState => "That action isn't valid right now.",
-                GameError.NoGame => "The game is no longer running.",
-                GameError.Transport t => $"Couldn't reach the server: {t.Detail}",
-                _ => "The action failed.",
+                _ => result.Error.Message,
             };
         }
 

@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using GameOfLife.Api.Contracts;
+using GameOfLife.Api.Errors;
 using GameOfLife.Api.Game;
 using GameOfLife.Core;
 
@@ -18,23 +19,23 @@ namespace GameOfLife.Api.Features.CreateGame;
 public sealed record CreateGameRequest : IValidatableObject
 {
     /// <summary>Base64 of exactly 1250 bytes = 100×100 bits, row-major, MSB-first, 1 = alive. All-dead allowed.</summary>
-    [Required]
+    [Required(ErrorMessage = ErrorMessages.SeedRequired)]
     public string? Seed { get; init; }
 
     /// <summary>Torus coordinate of the grid's top-left cell (row 0, col 0).</summary>
-    [Required]
+    [Required(ErrorMessage = ErrorMessages.OriginRequired)]
     public CellDto? Origin { get; init; }
 
     /// <summary>true → created directly Running; false → held at generation 0 as Created.</summary>
-    [Required]
+    [Required(ErrorMessage = ErrorMessages.AutoStartRequired)]
     public bool? AutoStart { get; init; }
 
     /// <summary>B/S rulestring, e.g. "B3/S23". B0 is rejected.</summary>
-    [Required]
+    [Required(ErrorMessage = ErrorMessages.RuleRequired)]
     public string? Rule { get; init; }
 
     /// <summary>Generations per second, inclusive range 0.1 .. 200.</summary>
-    [Required]
+    [Required(ErrorMessage = ErrorMessages.TickRateRequired)]
     public double? TickRate { get; init; }
 
     /// <summary>Minimum accepted <see cref="TickRate"/> (gen/sec).</summary>
@@ -46,21 +47,18 @@ public sealed record CreateGameRequest : IValidatableObject
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         // [Required] already flags missing fields; here we validate the format/range of present ones.
+        // Member names are the C# property names; the endpoint projects them to camelCase field keys.
         if (Seed is not null && !SeedGrid.TryDecode(Seed, out _))
-            yield return new ValidationResult(
-                $"Seed must be base64 that decodes to exactly {SeedGrid.ByteLength} bytes.", [nameof(Seed)]);
+            yield return new ValidationResult(ErrorMessages.SeedInvalid, [nameof(Seed)]);
 
         if (Origin is not null && !TryParseOrigin(Origin, out _, out _))
-            yield return new ValidationResult(
-                "Origin X and Y must each be a ulong decimal string (0 .. 18446744073709551615).", [nameof(Origin)]);
+            yield return new ValidationResult(ErrorMessages.OriginInvalid, [nameof(Origin)]);
 
         if (Rule is not null && !Core.Rule.TryParse(Rule, out _))
-            yield return new ValidationResult(
-                "Rule must match B[0-8]*/S[0-8]* with unique digits per group and must not contain B0.", [nameof(Rule)]);
+            yield return new ValidationResult(ErrorMessages.RuleInvalid, [nameof(Rule)]);
 
         if (TickRate is { } rate && (rate < MinTickRate || rate > MaxTickRate))
-            yield return new ValidationResult(
-                $"TickRate must be within {MinTickRate} .. {MaxTickRate} generations per second.", [nameof(TickRate)]);
+            yield return new ValidationResult(ErrorMessages.TickRateInvalid, [nameof(TickRate)]);
     }
 
     /// <summary>

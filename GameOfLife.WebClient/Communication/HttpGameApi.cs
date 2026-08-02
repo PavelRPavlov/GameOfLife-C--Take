@@ -1,7 +1,8 @@
 using System.Globalization;
-using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using GameOfLife.Core;
+using GameOfLife.Shared;
 
 namespace GameOfLife.WebClient.Communication;
 
@@ -9,9 +10,13 @@ namespace GameOfLife.WebClient.Communication;
 /// The real <see cref="IGameApi"/> — a typed <see cref="HttpClient"/> over the backend REST contract.
 /// It confines the wire DTOs (decimal-string coordinates, string enums) to this boundary and hands the
 /// seam only parsed domain types. Non-2xx responses that carry UX meaning become <see cref="GameError"/>
-/// values (never exceptions): <c>404</c>→<see cref="GameError.NoGame"/>, <c>403</c>→<see cref="GameError.Forbidden"/>,
-/// <c>409</c>→<see cref="GameError.AlreadyExists"/> (create) or <see cref="GameError.InvalidState"/> (control),
-/// <c>400</c>→<see cref="GameError.ValidationRejected"/>; a network failure / <c>5xx</c> / unforeseen status becomes
+/// values (never exceptions): the shared <see cref="ErrorEnvelope"/> is deserialized from the body and
+/// its machine-readable <c>code</c> selects the arm (<see cref="ErrorCodes.GameNotFound"/>→<see cref="GameError.NoGame"/>,
+/// <see cref="ErrorCodes.InvalidAdminSecret"/>→<see cref="GameError.Forbidden"/>,
+/// <see cref="ErrorCodes.InvalidStateForVerb"/>→<see cref="GameError.InvalidState"/>,
+/// <see cref="ErrorCodes.GameAlreadyExists"/>→<see cref="GameError.AlreadyExists"/>,
+/// <see cref="ErrorCodes.ValidationFailed"/>→<see cref="GameError.ValidationRejected"/>), carrying the server's
+/// message verbatim. An unknown/absent code, a network failure, or an unparseable body becomes
 /// <see cref="GameError.Transport"/>. The admin secret is attached transparently as <c>X-Admin-Secret</c> on every
 /// control verb from <see cref="IAdminSecretStore"/>, so component code never handles it.
 /// </summary>
@@ -52,11 +57,6 @@ public sealed class HttpGameApi : IGameApi
                 var dto = await response.Content.ReadFromJsonAsync<CreateGameResponseDto>(WireJson.Options, token);
                 return new CreatedGame(dto!.AdminSecret, dto.Status, dto.Generation, dto.TickRate, dto.Rule);
             },
-            status => status switch
-            {
-                HttpStatusCode.Conflict => GameError.AlreadyExists.Instance,
-                _ => null, // 400 (ValidationRejected) and network/5xx handled by SendAsync's shared paths
-            },
             ct);
     }
 
@@ -81,13 +81,6 @@ public sealed class HttpGameApi : IGameApi
                 var dto = await response.Content.ReadFromJsonAsync<ControlResponseDto>(WireJson.Options, token);
                 return new ControlOutcome(dto!.Status, dto.Generation);
             },
-            status => status switch
-            {
-                HttpStatusCode.NotFound => GameError.NoGame.Instance,
-                HttpStatusCode.Forbidden => GameError.Forbidden.Instance,
-                HttpStatusCode.Conflict => GameError.InvalidState.Instance,
-                _ => null,
-            },
             ct);
 
     public Task<Result<Snapshot, GameError>> GetSnapshotAsync(CancellationToken ct = default) =>
@@ -99,24 +92,28 @@ public sealed class HttpGameApi : IGameApi
                 var cells = dto!.Cells.Select(c => c.ToDomain()).ToList();
                 return new Snapshot(dto.Gen, dto.Status, dto.TickRate, cells);
             },
-            status => status switch
-            {
-                HttpStatusCode.NotFound => GameError.NoGame.Instance,
-                _ => null,
-            },
             ct);
 
     /// <summary>
+    /// The client-owned fallback shown when no usable error envelope arrived: a genuine network failure
+    /// (no body), an unparseable body, or an envelope with an empty message. The one string the client
+    /// authors — every other message is the server's, shown verbatim.
+    /// </summary>
+    internal const string TransportFallbackMessage = "Couldn't reach the server. Please try again.";
+
+    /// <summary>
     /// The shared request pipeline: build the message, send it, and fold the response into a
-    /// <see cref="Result{T, GameError}"/>. Success (2xx) parses the body; a mapped non-2xx becomes its
-    /// <see cref="GameError"/> value; a <c>400</c> becomes <see cref="GameError.ValidationRejected"/>;
-    /// anything else — plus a thrown <see cref="HttpRequestException"/> or a non-cancellation timeout —
-    /// becomes <see cref="GameError.Transport"/>. A cancellation via <paramref name="ct"/> propagates.
+    /// <see cref="Result{T, GameError}"/>. Success (2xx) parses the body; a non-2xx deserializes the
+    /// shared <see cref="ErrorEnvelope"/> and branches on its <c>code</c> into a <see cref="GameError"/>
+    /// arm (carrying the server's message verbatim). An unknown code falls back to
+    /// <see cref="GameError.Transport"/> still showing the server message; an absent/unparseable
+    /// envelope, an empty message, a thrown <see cref="HttpRequestException"/>, or a non-cancellation
+    /// timeout becomes <see cref="GameError.Transport"/> with <see cref="TransportFallbackMessage"/>.
+    /// A cancellation via <paramref name="ct"/> propagates.
     /// </summary>
     private async Task<Result<T, GameError>> SendAsync<T>(
         Func<HttpRequestMessage> buildRequest,
         Func<HttpResponseMessage, CancellationToken, Task<T>> parseSuccess,
-        Func<HttpStatusCode, GameError?> mapStatus,
         CancellationToken ct)
     {
         try
@@ -127,17 +124,8 @@ public sealed class HttpGameApi : IGameApi
             if (response.IsSuccessStatusCode)
                 return Result<T, GameError>.Ok(await parseSuccess(response, ct));
 
-            if (mapStatus(response.StatusCode) is { } mapped)
-                return Result<T, GameError>.Err(mapped);
-
-            if (response.StatusCode == HttpStatusCode.BadRequest)
-            {
-                var details = await response.Content.ReadAsStringAsync(ct);
-                return Result<T, GameError>.Err(new GameError.ValidationRejected(details));
-            }
-
-            return Result<T, GameError>.Err(
-                new GameError.Transport($"Unexpected status {(int)response.StatusCode} {response.StatusCode}."));
+            var envelope = await ReadEnvelopeAsync(response, ct);
+            return Result<T, GameError>.Err(ToGameError(envelope));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -145,22 +133,64 @@ public sealed class HttpGameApi : IGameApi
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or NotSupportedException)
         {
-            return Result<T, GameError>.Err(new GameError.Transport(ex.Message));
+            return Result<T, GameError>.Err(new GameError.Transport(TransportFallbackMessage));
         }
+    }
+
+    /// <summary>Reads the error envelope from a non-2xx body, or null if the body isn't a usable envelope.</summary>
+    private static async Task<ErrorEnvelope?> ReadEnvelopeAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<ErrorEnvelope>(WireJson.Options, ct);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            // A body that isn't the envelope (empty, HTML, a bare string) → no usable code.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Maps an error envelope to a <see cref="GameError"/> arm by its <c>code</c>. An absent envelope, a
+    /// missing code, or an empty message all fall back to <see cref="GameError.Transport"/> with the
+    /// client string; an unknown code with a message falls back to <see cref="GameError.Transport"/>
+    /// showing that server message verbatim.
+    /// </summary>
+    private static GameError ToGameError(ErrorEnvelope? envelope)
+    {
+        if (envelope is null || string.IsNullOrEmpty(envelope.Code) || string.IsNullOrEmpty(envelope.Message))
+            return new GameError.Transport(TransportFallbackMessage);
+
+        var message = envelope.Message;
+        return envelope.Code switch
+        {
+            ErrorCodes.GameNotFound => new GameError.NoGame(message),
+            ErrorCodes.InvalidAdminSecret => new GameError.Forbidden(message),
+            ErrorCodes.InvalidStateForVerb => new GameError.InvalidState(message),
+            ErrorCodes.GameAlreadyExists => new GameError.AlreadyExists(message),
+            ErrorCodes.ValidationFailed => new GameError.ValidationRejected(message, envelope.Errors ?? []),
+            // INTERNAL_ERROR, MALFORMED_REQUEST_BODY, and any unknown code → Transport, server message shown.
+            _ => new GameError.Transport(message),
+        };
     }
 
     // ---- Client-side validation (mirrors the backend's contract) ----
 
-    /// <summary>Returns a <see cref="GameError.ValidationRejected"/> if the request is malformed, else null.</summary>
+    /// <summary>
+    /// Returns a <see cref="GameError.ValidationRejected"/> if the request is malformed, else null. A
+    /// pre-send guard (not the surfaced contract): its messages mirror the backend's field copy so a
+    /// short-circuit reads the same as a server rejection. Carries no per-field breakdown.
+    /// </summary>
     private static GameError? Validate(CreateGameRequest request)
     {
         if (!IsValidSeed(request.Seed))
-            return new GameError.ValidationRejected("Seed must be base64 that decodes to exactly 1250 bytes (100×100 bits).");
+            return new GameError.ValidationRejected("The starting grid isn't in the expected format. Please regenerate it and try again.", []);
         // The B/S rule grammar (unique digits per group, no B0) is owned by the shared kernel.
         if (!Rule.TryParse(request.Rule, out _))
-            return new GameError.ValidationRejected("Rule must match B[0-8]*/S[0-8]* with unique digits per group and no B0.");
+            return new GameError.ValidationRejected("That rule isn't valid. Use a birth/survival rule like \"B3/S23\" — birth on 0 neighbours isn't allowed.", []);
         if (request.TickRate is < MinTickRate or > MaxTickRate || double.IsNaN(request.TickRate))
-            return new GameError.ValidationRejected($"TickRate must be within {MinTickRate}..{MaxTickRate} generations per second.");
+            return new GameError.ValidationRejected("The tick rate must be between 0.1 and 200 generations per second.", []);
         return null;
     }
 
