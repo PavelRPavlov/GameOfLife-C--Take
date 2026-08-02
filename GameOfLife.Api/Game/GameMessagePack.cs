@@ -15,6 +15,11 @@ namespace GameOfLife.Api.Game;
 /// <item><b>Enum by value</b> — the standard resolver carries <c>GameStatus</c> as its underlying
 /// integer (member order is stable), so no JSON string-enum converter is involved.</item>
 /// <item><b>UntrustedData security</b> — matches SignalR's own default MessagePack posture.</item>
+/// <item><b>LZ4BlockArray compression</b> — the columnar <see cref="ulong"/> arrays put cells that
+/// are near each other on the torus into contiguous, shared-high-order-byte runs, which LZ4 packs
+/// down further on large deltas. Compression is part of the options and <em>must</em> match on both
+/// ends, so it lives here; tiny deltas fall under MessagePack's internal LZ4 threshold and pass
+/// through uncompressed with negligible overhead.</item>
 /// </list>
 /// </summary>
 internal static class GameMessagePack
@@ -22,5 +27,6 @@ internal static class GameMessagePack
     public static readonly MessagePackSerializerOptions SerializerOptions =
         MessagePackSerializerOptions.Standard
             .WithResolver(ContractlessStandardResolver.Instance)
-            .WithSecurity(MessagePackSecurity.UntrustedData);
+            .WithSecurity(MessagePackSecurity.UntrustedData)
+            .WithCompression(MessagePackCompression.Lz4BlockArray);
 }

@@ -95,6 +95,49 @@ public class DeltaWireProtocolTests(ITestOutputHelper output)
             $"expected MessagePack ({messagePackBytes} B) to be under half the JSON baseline ({jsonBytes} B)");
     }
 
+    [Fact]
+    public void Given_the_large_sample_delta_When_LZ4_compression_is_enabled_Then_the_payload_is_materially_smaller_than_uncompressed_MessagePack()
+    {
+        // Same 500+500 sample as the JSON-baseline test — the ticket's fixed large delta.
+        var delta = SampleDelta(500);
+
+        var uncompressed = MessagePackSerializer.Serialize(delta, Uncompressed).Length;
+        var compressed = MessagePackSerializer.Serialize(delta, GameMessagePack.SerializerOptions).Length;
+
+        output.WriteLine(
+            $"Delta (500 births + 500 deaths): uncompressed MessagePack = {uncompressed} bytes, " +
+            $"LZ4BlockArray = {compressed} bytes, ratio = {(double)compressed / uncompressed:P1}.");
+
+        // "Materially smaller", not merely a byte smaller: hold LZ4 to at least a 10% cut on the large
+        // sample (the ticket expects 2–4× on big deltas; this mixed-magnitude sample runs ~1.5×).
+        Assert.True(compressed < uncompressed * 0.9,
+            $"expected LZ4 compression ({compressed} B) to be materially smaller than the uncompressed MessagePack baseline ({uncompressed} B)");
+    }
+
+    [Fact]
+    public void Given_the_smallest_delta_When_LZ4_compression_is_enabled_Then_there_is_no_meaningful_size_regression()
+    {
+        // 1 birth / 0 deaths — well under MessagePack's internal LZ4 threshold, so the compressed
+        // encoding must pass the raw bytes through rather than pay a compression penalty.
+        var tiny = new DeltaDto(1000, 1001, [7UL], [123_456_789UL], [], []);
+
+        var uncompressed = MessagePackSerializer.Serialize(tiny, Uncompressed).Length;
+        var compressed = MessagePackSerializer.Serialize(tiny, GameMessagePack.SerializerOptions).Length;
+
+        output.WriteLine(
+            $"Smallest delta (1 birth / 0 deaths): uncompressed MessagePack = {uncompressed} bytes, " +
+            $"LZ4BlockArray = {compressed} bytes.");
+
+        Assert.True(compressed <= uncompressed,
+            $"expected the tiny delta to pass through with no regression, but LZ4 ({compressed} B) exceeded uncompressed ({uncompressed} B)");
+    }
+
+    // The exact GameMessagePack options minus compression — the honest before for the compression
+    // size comparisons. Derived from the real options (not hand-copied) so resolver and security stay
+    // guaranteed-identical and only LZ4 differs, even if that shared posture ever changes.
+    private static readonly MessagePackSerializerOptions Uncompressed =
+        GameMessagePack.SerializerOptions.WithCompression(MessagePackCompression.None);
+
     // A deterministic delta spanning tiny to near-2^64 magnitudes, so the size measurement reflects a
     // realistic mix rather than a best case.
     private static DeltaDto SampleDelta(int n)

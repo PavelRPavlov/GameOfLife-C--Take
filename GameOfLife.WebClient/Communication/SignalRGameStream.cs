@@ -34,12 +34,14 @@ public sealed class SignalRGameStream : IGameStream
             .WithUrl(hubUrl)
             .WithAutomaticReconnect(ReconnectDelays)
             // Match the server's binary MessagePack protocol (GameMessagePack on the backend): contractless
-            // records, GameStatus by value, coordinates as native ulong. These options must stay in lockstep
-            // with the server's — see GameOfLife.Api/Game/GameMessagePack.cs.
+            // records, GameStatus by value, coordinates as native ulong, LZ4BlockArray compression. These
+            // options must stay in lockstep with the server's (a compression mismatch fails deserialization)
+            // — see GameOfLife.Api/Game/GameMessagePack.cs.
             .AddMessagePackProtocol(options =>
                 options.SerializerOptions = MessagePackSerializerOptions.Standard
                     .WithResolver(ContractlessStandardResolver.Instance)
-                    .WithSecurity(MessagePackSecurity.UntrustedData))
+                    .WithSecurity(MessagePackSecurity.UntrustedData)
+                    .WithCompression(MessagePackCompression.Lz4BlockArray))
             .Build();
 
         _hub.On<DeltaPushDto>("ReceiveDelta", dto => DeltaReceived?.Invoke(dto.ToDomain()));
