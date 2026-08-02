@@ -246,11 +246,17 @@ button.primary:disabled {
     color: #842029;
 }
 
+/* The admin's live controls, slotted into the shared stage's left column: a full-width vertical stack so
+   the five actions read cleanly in the fixed-width panel. */
 .admin-controls {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 0.5rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.admin-controls .primary {
+    width: 100%;
 }
 
 /* The live torus viewport (wayfinder #15), embedded by /admin and /observe. The <canvas> carries no
@@ -271,6 +277,67 @@ button.primary:disabled {
 
 .game-viewport:active {
     cursor: grabbing;
+}
+
+/* Shared live-game stage (wayfinder #18/#19) — the admin control panel and the observer both use it, and
+   it echoes the seed editor's full-viewport treatment. The page breaks out of the app-shell's centred
+   max-width, a fixed-width left column holds the chrome (back link, title, status, role controls), and the
+   viewport fills the rest of the row: full remaining width and a height that leaves equal top and bottom
+   gaps (the app-shell's 1.5rem padding), so the page is exactly one viewport tall with no scroll. */
+.stage-view {
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+.stage-body {
+    --stage-panel-w: 14rem;
+    --stage-gap: 1.25rem;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: var(--stage-gap);
+    align-items: flex-start;
+}
+
+.stage-controls {
+    flex: 0 0 var(--stage-panel-w);
+    width: var(--stage-panel-w);
+}
+
+.stage-controls .admin-back {
+    margin: 0 0 0.25rem;
+}
+
+.stage-title {
+    margin: 0 0 0.6rem;
+    font-size: 1.3rem;
+    line-height: 1.2;
+}
+
+.stage-view .game-viewport {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    height: calc(100vh - 3rem - 2px);
+    margin: 0;
+}
+
+@media (max-width: 40rem) {
+    .stage-body {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .stage-controls {
+        flex-basis: auto;
+        width: auto;
+    }
+
+    .stage-view .game-viewport {
+        height: min(70vh, calc(100vh - 3rem - 2px));
+    }
 }
 
 button.link {

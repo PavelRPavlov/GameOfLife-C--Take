@@ -81,30 +81,23 @@
     }
     else
     {
-        <h1>Admin control</h1>
-        <dl class="status">
-            <dt>Status</dt>
-            <dd>@Store.Status</dd>
-            <dt>Generation</dt>
-            <dd>@Store.Generation</dd>
-        </dl>
+        @* The admin role: the same shared stage as the observer, with the control buttons slotted in. *@
+        <GameStage Title="Admin control">
+            <Controls>
+                <div class="admin-controls">
+                    <button type="button" class="primary" disabled="@(!CanStart)" @onclick="() => ControlAsync(Store.StartAsync)">Start</button>
+                    <button type="button" class="primary" disabled="@(!CanPause)" @onclick="() => ControlAsync(Store.PauseAsync)">Pause</button>
+                    <button type="button" class="primary" disabled="@(!CanResume)" @onclick="() => ControlAsync(Store.ResumeAsync)">Resume</button>
+                    <button type="button" class="primary" disabled="@(!CanStep)" @onclick="() => ControlAsync(Store.StepAsync)">Step</button>
+                    <button type="button" class="primary" disabled="@(!CanStop)" @onclick="() => ControlAsync(Store.StopAsync)">Stop</button>
+                </div>
 
-        <div class="admin-controls">
-            <button type="button" class="primary" disabled="@(!CanStart)" @onclick="() => ControlAsync(Store.StartAsync)">Start</button>
-            <button type="button" class="primary" disabled="@(!CanPause)" @onclick="() => ControlAsync(Store.PauseAsync)">Pause</button>
-            <button type="button" class="primary" disabled="@(!CanResume)" @onclick="() => ControlAsync(Store.ResumeAsync)">Resume</button>
-            <button type="button" class="primary" disabled="@(!CanStep)" @onclick="() => ControlAsync(Store.StepAsync)">Step</button>
-            <button type="button" class="primary" disabled="@(!CanStop)" @onclick="() => ControlAsync(Store.StopAsync)">Stop</button>
-        </div>
-
-        @if (_controlError is not null)
-        {
-            <p class="admin-msg admin-msg-error">@_controlError</p>
-        }
-
-        <GameViewport />
-
-        <p><a href="/">← Home</a></p>
+                @if (_controlError is not null)
+                {
+                    <p class="admin-msg admin-msg-error">@_controlError</p>
+                }
+            </Controls>
+        </GameStage>
     }
 }
 

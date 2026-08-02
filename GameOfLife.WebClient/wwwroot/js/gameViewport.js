@@ -12,9 +12,12 @@
 // Number()s the *small* result, so all pixel math stays in double-safe range. A naive cellX*cellSize
 // would corrupt past 2^53; this never does.
 //
-// Viewport model (decided with Pavel on #15): fit-once-then-free camera (auto-frame the live set on
-// the first snapshot only, never yank the camera on a resync), flat-plane culling (no torus-seam
-// rendering — the seed is sparse and the wrap seam is ~1.8e19 cells away, never reached by panning).
+// Viewport model (decided with Pavel on #15, refined #19): auto-frame the live set until the user takes
+// control. The camera re-fits to the live cells on every snapshot and every resize *until the first pan
+// or zoom* — so wherever a seed lands on the torus (centre or a random corner), and however the canvas
+// settles during layout, the observer always opens framed on the actual cells. Once the user pans/zooms,
+// the camera is theirs and is never yanked again (not on a resync, a new snapshot, or a resize). Culling
+// is flat-plane (no torus-seam rendering — the seed is sparse and the wrap seam is ~1.8e19 cells away).
 
 const viewports = new Map(); // handle id -> state
 let nextId = 1;
@@ -38,7 +41,8 @@ export function create(canvas) {
         cellSize: 12,       // pixels per cell (the zoom level)
         dpr: 1, viewW: 0, viewH: 0,
         dirty: true,
-        fitPending: true,   // "fit once": consumed by the first good paint that has cells
+        fitPending: true,   // auto-frame armed: consumed by the next good paint that has cells
+        userMoved: false,   // true once the user pans/zooms — from then on the camera is never re-framed
         raf: 0,
         dragging: false, lastX: 0, lastY: 0,
         gen: 0, cellCount: 0,
@@ -63,6 +67,9 @@ export function snapshot(id, keys, gen) {
     for (const k of keys) s.cells.set(k, parseKey(k));
     s.gen = gen ?? s.gen;
     s.cellCount = s.cells.size;
+    // Re-arm the auto-frame for a fresh baseline (initial attach, a new game, or a resync) as long as the
+    // user hasn't taken control — so a newly seeded set is always framed, wherever it sits on the torus.
+    if (!s.userMoved) s.fitPending = true;
     s.dirty = true;
 }
 
@@ -104,6 +111,9 @@ function resize(s) {
     s.viewH = r.height;
     s.canvas.width = Math.max(1, Math.round(r.width * s.dpr));
     s.canvas.height = Math.max(1, Math.round(r.height * s.dpr));
+    // Re-frame after a size change (deferred layout, a flex reflow, a window resize) until the user has
+    // taken control — the first fit may have landed against a stale/zero box, so keep it framed.
+    if (!s.userMoved) s.fitPending = true;
     s.dirty = true;
 }
 
@@ -208,6 +218,7 @@ function attachInput(s) {
 // Drag: move content with the cursor. screenX = rel*cs - subX, so to shift content by +dx we
 // decrease subX; whole-cell overflow folds into the BigInt camera, keeping screenX invariant.
 function pan(s, dx, dy) {
+    s.userMoved = true; // the camera is the user's now — stop auto-framing
     s.subX -= dx; s.subY -= dy;
     normalize(s);
     s.dirty = true;
@@ -219,6 +230,7 @@ function zoom(s, mx, my, factor) {
     const oldCs = s.cellSize;
     const newCs = clamp(oldCs * factor, MIN_CELL_PX, MAX_CELL_PX);
     if (newCs === oldCs) return;
+    s.userMoved = true; // the camera is the user's now — stop auto-framing
     s.subX = (mx + s.subX) * (newCs / oldCs) - mx;
     s.subY = (my + s.subY) * (newCs / oldCs) - my;
     s.cellSize = newCs;

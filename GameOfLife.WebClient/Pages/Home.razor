@@ -35,7 +35,11 @@
             <dt>Generation</dt>
             <dd>@Store.Generation</dd>
         </dl>
-        <button type="button" class="primary" @onclick="Observe">Observe</button>
+        @* A client that holds the admin secret is this game's admin — send it back to its control panel,
+           not the read-only observer. Everyone else observes. *@
+        <button type="button" class="primary" @onclick="Open">
+            @(Store.HasAdminSecret ? "Open control panel" : "Observe")
+        </button>
     }
 }
 @* Connecting / Disconnected: the shell banner carries the message and the Retry — nothing to gate on yet. *@
@@ -57,7 +61,9 @@
 
     private void Create() => Nav.NavigateTo("/admin");
 
-    private void Observe() => Nav.NavigateTo("/observe");
+    // Admins (secret holders) go to their control panel; observers to the read-only view. Both routes
+    // self-gate on arrival, so this is a UX shortcut, not the security boundary (#14).
+    private void Open() => Nav.NavigateTo(Store.HasAdminSecret ? "/admin" : "/observe");
 
     public void Dispose()
     {

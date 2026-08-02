@@ -11,28 +11,19 @@
 
 <PageTitle>Game of Life — Observer</PageTitle>
 
-<h1>Observer</h1>
-
 @if (Phase is ShellPhase.Ready or ShellPhase.Reconnecting)
 {
     @if (Store.Status is GameStatus.NoGame)
     {
         @* No game exists, or the game being watched was stopped (→ NoGame): nothing to observe. *@
+        <h1>Observer</h1>
         <p>No game is running.</p>
         <p><a href="/">← Home</a></p>
     }
     else
     {
-        <dl class="status">
-            <dt>Status</dt>
-            <dd>@Store.Status</dd>
-            <dt>Generation</dt>
-            <dd>@Store.Generation</dd>
-        </dl>
-
-        <GameViewport />
-
-        <p><a href="/">← Home</a></p>
+        @* The read-only role: the shared stage with no controls slotted in. *@
+        <GameStage Title="Observer" />
     }
 }
 @* Connecting / Disconnected: the shell banner carries the message and the Retry — nothing to gate yet. *@

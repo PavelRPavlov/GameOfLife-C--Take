@@ -1,0 +1,56 @@
+@inject GameStore Store
+@implements IDisposable
+
+@* The shared live-game stage (wayfinder #18/#19). One full-viewport layout for every surface that watches
+   the running game — the admin control panel and the read-only observer both render this. A fixed-width
+   left column carries the page chrome (back link, title) and live status; the embedded <GameViewport/>
+   fills the rest of the row (full remaining width, full height with equal top/bottom gaps). The ONLY thing
+   that varies between roles is the host-supplied <Controls>: the admin slots its start/stop buttons in,
+   the observer slots nothing — so both roles read as the same page, differing only by capability. *@
+
+<div class="stage-view">
+    <div class="stage-body">
+        <div class="stage-controls">
+            <p class="admin-back"><a href="/">← Home</a></p>
+            <h1 class="stage-title">@Title</h1>
+
+            <dl class="status">
+                <dt>Status</dt>
+                <dd>@Store.Status</dd>
+                <dt>Generation</dt>
+                <dd>@Store.Generation</dd>
+            </dl>
+
+            @Controls
+        </div>
+
+        <GameViewport />
+    </div>
+</div>
+
+@code {
+    /// <summary>The page title shown atop the control column (e.g. "Observer", "Admin control").</summary>
+    [Parameter] public string Title { get; set; } = "";
+
+    /// <summary>Role-specific affordances placed below the status (the admin's controls; empty for an observer).</summary>
+    [Parameter] public RenderFragment? Controls { get; set; }
+
+    // The status readout (@Store.Status / @Store.Generation) lives here, so this component must repaint on
+    // its own when the store changes. It can't rely on the host page re-rendering it: Blazor skips
+    // re-rendering a child whose parameters are unchanged, and the observer passes only a constant Title (no
+    // Controls fragment), so a page-driven re-render never reaches it — the readout would freeze mid-game.
+    protected override void OnInitialized()
+    {
+        Store.StatusChanged += OnStoreChanged;
+        Store.GenerationChanged += OnStoreChanged;
+    }
+
+    private void OnStoreChanged(GameStatus _) => InvokeAsync(StateHasChanged);
+    private void OnStoreChanged(long _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Store.StatusChanged -= OnStoreChanged;
+        Store.GenerationChanged -= OnStoreChanged;
+    }
+}
