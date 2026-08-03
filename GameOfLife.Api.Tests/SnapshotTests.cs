@@ -32,7 +32,7 @@ public class SnapshotTests
 
         Assert.Equal(GameStatus.Created, snapshot!.Status);
         Assert.Equal(0, snapshot.Gen);
-        Assert.Equal(10, snapshot.TickRate);
+        Assert.Equal(100, snapshot.TickRate);
     }
 
     [Fact]

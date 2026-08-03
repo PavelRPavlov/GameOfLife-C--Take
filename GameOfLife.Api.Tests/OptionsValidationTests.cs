@@ -20,7 +20,7 @@ public class OptionsValidationTests
     [Fact]
     public void Given_valid_game_options_When_validated_Then_validation_succeeds()
     {
-        var result = GameValidator.Validate(null, new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100 });
+        var result = GameValidator.Validate(null, new GameOptions { DefaultRule = "B3/S23" });
 
         Assert.True(result.Succeeded);
     }
@@ -32,17 +32,7 @@ public class OptionsValidationTests
     [InlineData("")]        // empty
     public void Given_an_unparseable_default_rule_When_game_options_are_validated_Then_validation_fails(string rule)
     {
-        var result = GameValidator.Validate(null, new GameOptions { DefaultRule = rule, BroadcastIntervalMs = 100 });
-
-        Assert.True(result.Failed);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-5)]
-    public void Given_a_non_positive_broadcast_interval_When_game_options_are_validated_Then_validation_fails(int intervalMs)
-    {
-        var result = GameValidator.Validate(null, new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = intervalMs });
+        var result = GameValidator.Validate(null, new GameOptions { DefaultRule = rule });
 
         Assert.True(result.Failed);
     }
@@ -59,7 +49,7 @@ public class OptionsValidationTests
     public void Given_a_wrap_capable_coordinate_type_When_game_options_are_validated_Then_validation_succeeds(string coordinateType)
     {
         var result = GameValidator.Validate(null,
-            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, UniverseAxisSize = coordinateType });
+            new GameOptions { DefaultRule = "B3/S23", UniverseAxisSize = coordinateType });
 
         Assert.True(result.Succeeded);
     }
@@ -77,7 +67,7 @@ public class OptionsValidationTests
     public void Given_a_non_wrap_capable_coordinate_type_When_game_options_are_validated_Then_validation_fails(string coordinateType)
     {
         var result = GameValidator.Validate(null,
-            new GameOptions { DefaultRule = "B3/S23", BroadcastIntervalMs = 100, UniverseAxisSize = coordinateType });
+            new GameOptions { DefaultRule = "B3/S23", UniverseAxisSize = coordinateType });
 
         Assert.True(result.Failed);
     }

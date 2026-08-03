@@ -196,12 +196,14 @@ public sealed class HttpGameApi : IGameApi
         if (!Rule.TryParse(request.Rule, out _))
             return new GameError.ValidationRejected("That rule isn't valid. Use a birth/survival rule like \"B3/S23\" — birth on 0 neighbours isn't allowed.", []);
         if (request.TickRate is < MinTickRate or > MaxTickRate || double.IsNaN(request.TickRate))
-            return new GameError.ValidationRejected("The tick rate must be between 0.1 and 200 generations per second.", []);
+            return new GameError.ValidationRejected("The tick rate must be between 60 and 250 generations per second.", []);
         return null;
     }
 
-    private const double MinTickRate = 0.1;
-    private const double MaxTickRate = 200.0;
+    // Mirrors the backend's CreateGameRequest.Min/MaxTickRate: the sim is capped so every generation is
+    // delivered to observers (see the API's advance-driven broadcast pump).
+    private const double MinTickRate = 60.0;
+    private const double MaxTickRate = 250.0;
 
     /// <summary>The seed is 100×100 bits = 1250 bytes, base64-encoded — the single source of truth is
     /// <see cref="SeedBoard.ByteLength"/> (the seeding domain that produces the packing).</summary>

@@ -15,7 +15,7 @@ namespace GameOfLife.Api.Tests;
 /// </summary>
 public class CreateGameRequestTests
 {
-    private static readonly GameOptions Options = new() { DefaultRule = "B3/S23", BroadcastIntervalMs = 50 };
+    private static readonly GameOptions Options = new() { DefaultRule = "B3/S23" };
 
     /// <summary>Runs the request through the same DataAnnotations validation the endpoint uses, so the
     /// decoded seed/origin ToParameters consumes are populated. Asserts the request is in fact valid.</summary>
@@ -37,13 +37,13 @@ public class CreateGameRequestTests
             Origin = new CellDto("2", "3"),
             AutoStart = true,
             Rule = "B36/S23",
-            TickRate = 7.5,
+            TickRate = 75,
         });
 
         var parameters = request.ToParameters(Options);
 
         Assert.Equal("B36/S23", parameters.Rule.ToString());
-        Assert.Equal(7.5, parameters.TickRate);
+        Assert.Equal(75, parameters.TickRate);
         Assert.True(parameters.AutoStart);
         Assert.NotEmpty(parameters.Seed);
     }
@@ -57,7 +57,7 @@ public class CreateGameRequestTests
             Origin = new CellDto("0", "0"),
             AutoStart = false,
             Rule = null, // omitted → server default
-            TickRate = 10,
+            TickRate = 100,
         });
 
         var parameters = request.ToParameters(Options);
@@ -75,7 +75,7 @@ public class CreateGameRequestTests
             Seed = TestSeeds.AllDead(),
             Origin = new CellDto("0", "0"),
             AutoStart = false,
-            TickRate = 10,
+            TickRate = 100,
         };
 
         Assert.Throws<InvalidOperationException>(() => request.ToParameters(Options));
@@ -89,7 +89,7 @@ public class CreateGameRequestTests
             Seed = "!!not-base64!!",
             Origin = new CellDto("0", "0"),
             AutoStart = false,
-            TickRate = 10,
+            TickRate = 100,
         };
 
         // Validation fails, so the seed is never decoded; ToParameters then refuses to project.
@@ -106,7 +106,7 @@ public class CreateGameRequestTests
             Seed = TestSeeds.AllDead(), // seed is fine, so the origin is the field that stays undecoded
             Origin = new CellDto("not-a-number", "0"),
             AutoStart = false,
-            TickRate = 10,
+            TickRate = 100,
         };
 
         var results = new List<ValidationResult>();

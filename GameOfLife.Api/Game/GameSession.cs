@@ -14,6 +14,7 @@ internal sealed class GameSession
     private readonly TimeSpan _period;
     private readonly ILogger<GameSession> _logger;
     private readonly Func<GameSession, Task> _onFaulted;
+    private readonly Action _onAdvanced;
 
     private CancellationTokenSource? _loopCts;
     private Task _loopTask = Task.CompletedTask;
@@ -25,8 +26,9 @@ internal sealed class GameSession
         bool autoStart,
         Universe universe,
         ILogger<GameSession> logger,
-        Func<GameSession, Task> onFaulted)
-        : this(new GameEngineSimulation(new GameEngine(seed, rule, universe)), rule, tickRate, autoStart, logger, onFaulted)
+        Func<GameSession, Task> onFaulted,
+        Action onAdvanced)
+        : this(new GameEngineSimulation(new GameEngine(seed, rule, universe)), rule, tickRate, autoStart, logger, onFaulted, onAdvanced)
     {
     }
 
@@ -41,7 +43,8 @@ internal sealed class GameSession
         double tickRate,
         bool autoStart,
         ILogger<GameSession> logger,
-        Func<GameSession, Task> onFaulted)
+        Func<GameSession, Task> onFaulted,
+        Action onAdvanced)
     {
         _engine = engine;
         Rule = rule;
@@ -49,6 +52,7 @@ internal sealed class GameSession
         _period = TimeSpan.FromSeconds(1.0 / tickRate);
         _logger = logger;
         _onFaulted = onFaulted;
+        _onAdvanced = onAdvanced;
         // A 256-bit token from the CSPRNG, base64url-encoded. Full random unpredictability for a value
         // that is the sole bearer credential for game control (a time-ordered GUID would leak a timestamp).
         AdminSecret = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
@@ -102,7 +106,12 @@ internal sealed class GameSession
         {
             using var timer = new PeriodicTimer(_period);
             while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
                 _engine.Advance();
+                // Pulse the broadcaster so the new generation is delivered; non-blocking, so delivery
+                // never paces the simulation. Must not throw (the host's signal swallows contention).
+                _onAdvanced();
+            }
         }
         catch (OperationCanceledException)
         {

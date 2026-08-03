@@ -17,9 +17,6 @@ public sealed class GameOptions
     /// </summary>
     public string DefaultRule { get; init; } = "";
 
-    /// <summary>Server-wide broadcast cadence in milliseconds (a coalesced net snapshot-diff per interval).</summary>
-    public int BroadcastIntervalMs { get; init; }
-
     /// <summary>
     /// The unsigned integer coordinate type that fixes the torus size (2^width per axis): e.g.
     /// <c>UInt64</c> for the default 2^64 world, or <c>Byte</c>/<c>UInt16</c>/<c>UInt32</c> for a

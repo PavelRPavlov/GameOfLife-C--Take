@@ -68,5 +68,5 @@ internal static class ErrorMessages
 
     public const string TickRateRequired = "A tick rate is required.";
     public const string TickRateInvalid =
-        "The tick rate must be between 0.1 and 200 generations per second.";
+        "The tick rate must be between 60 and 250 generations per second.";
 }

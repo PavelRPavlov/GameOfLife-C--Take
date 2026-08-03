@@ -19,7 +19,7 @@ public class HttpGameApiTests
     private static readonly string ValidSeed = Convert.ToBase64String(new byte[1250]);
 
     private static CreateGameRequest ValidCreate() =>
-        new(ValidSeed, new Cell(10, 20), "B3/S23", 5.0, AutoStart: false);
+        new(ValidSeed, new Cell(10, 20), "B3/S23", 100.0, AutoStart: false);
 
     /// <summary>The one client-owned string, shown when no usable error envelope arrives.</summary>
     private const string TransportFallback = "Couldn't reach the server. Please try again.";
@@ -124,7 +124,7 @@ public class HttpGameApiTests
         const string message = "Some of the values you provided aren't valid.";
         handler.Respond(HttpStatusCode.BadRequest, Envelope(
             ErrorCodes.ValidationFailed, message,
-            new FieldError("tickRate", "The tick rate must be between 0.1 and 200 generations per second.")));
+            new FieldError("tickRate", "The tick rate must be between 60 and 250 generations per second.")));
 
         var result = await api.CreateGame(ValidCreate());
 
@@ -138,7 +138,7 @@ public class HttpGameApiTests
     [InlineData("", "B3/S23", 5.0)]                    // empty seed — the IsValidSeed null/empty guard
     [InlineData(null, "B0/S23", 5.0)]                 // B0 rejected
     [InlineData(null, "B3/S23", 0.0)]                 // tick-rate below range
-    [InlineData(null, "B3/S23", 201.0)]               // tick-rate above range
+    [InlineData(null, "B3/S23", 250.1)]               // tick-rate above range
     [InlineData(null, "B3/S23", double.NaN)]          // NaN tick-rate rejected
     [InlineData(null, "B33/S23", 5.0)]                // repeated digit in a group
     public async Task Given_an_invalid_create_request_When_creating_a_game_Then_it_short_circuits_without_calling_the_backend(

@@ -61,8 +61,14 @@ internal sealed record SnapshotResponseDto(
 /// detect gaps. Unlike the REST DTOs this rides the binary MessagePack hub, so coordinates are native
 /// <see cref="ulong"/> — not decimal strings — and <em>columnar</em> (all X's, then all Y's) to match
 /// the backend: <c>BirthsX[i]</c> pairs with <c>BirthsY[i]</c>.
+///
+/// <para><b>Must be <c>public</c></b> (unlike the internal REST DTOs, which System.Text.Json handles
+/// either way): MessagePack's contractless resolver builds its formatter via reflection-emit and
+/// refuses a non-public type at runtime — the deserialize of the first delta would otherwise throw
+/// <c>"Building dynamic formatter only allows public type"</c>. Mirrors the backend's public
+/// <c>DeltaDto</c>.</para>
 /// </summary>
-internal sealed record DeltaPushDto(
+public sealed record DeltaPushDto(
     long FromGen,
     long ToGen,
     ulong[] BirthsX, ulong[] BirthsY,

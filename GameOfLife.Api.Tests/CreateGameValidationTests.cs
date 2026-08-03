@@ -31,7 +31,7 @@ public class CreateGameValidationTests
         Assert.Equal(GameStatus.Created, body.Status);
         Assert.Equal(0, body.Generation);
         Assert.Equal("B3/S23", body.Rule);
-        Assert.Equal(10, body.TickRate);
+        Assert.Equal(100, body.TickRate);
         Assert.Equal("/hubs/game", body.HubUrl);
         Assert.Equal("/snapshot", body.SnapshotUrl);
     }
@@ -160,8 +160,8 @@ public class CreateGameValidationTests
 
     [Theory]
     [InlineData(0.0)]
-    [InlineData(0.05)]
-    [InlineData(200.1)]
+    [InlineData(59.9)]   // just below the MinTickRate boundary
+    [InlineData(250.1)]  // just above the MaxTickRate boundary
     [InlineData(1000)]
     public async Task Given_an_out_of_range_tick_rate_When_posted_Then_validation_fails_on_tickRate(double tickRate)
     {
@@ -175,8 +175,8 @@ public class CreateGameValidationTests
     }
 
     [Theory]
-    [InlineData(0.1)]   // MinTickRate boundary
-    [InlineData(200.0)] // MaxTickRate boundary — raised from 60 for high-speed testing
+    [InlineData(60.0)]  // MinTickRate boundary
+    [InlineData(250.0)] // MaxTickRate boundary — capped so delivery stays faithful to every generation
     public async Task Given_a_boundary_tick_rate_When_posted_Then_the_game_is_created_with_201(double tickRate)
     {
         await using var ctx = new ApiTestContext();

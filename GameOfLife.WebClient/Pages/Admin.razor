@@ -40,7 +40,7 @@
                     }
                 </Settings>
                 <Advanced>
-                    @* The game's tunables are hidden by default: the sensible defaults (rule B3/S23, 10 gen/sec,
+                    @* The game's tunables are hidden by default: the sensible defaults (rule B3/S23, 100 gen/sec,
                        origin 0,0, no auto-start) cover the common case, so creating a game is just draw + click.
                        The disclosure holds the knobs for when they're actually wanted. *@
                     <details class="admin-advanced">
@@ -54,8 +54,8 @@
                             <input class="admin-in @(RuleValid ? "" : "invalid")" @bind="_ruleS" @bind:event="oninput" />
                         </div>
 
-                        <label class="admin-field">Tick rate — @_tickRate.ToString("0.0") gen/sec</label>
-                        <input type="range" min="0.1" max="200" step="0.1" @bind="_tickRate" @bind:event="oninput" class="admin-range" />
+                        <label class="admin-field">Tick rate — @_tickRate.ToString("0") gen/sec</label>
+                        <input type="range" min="60" max="250" step="1" @bind="_tickRate" @bind:event="oninput" class="admin-range" />
 
                         <label class="admin-field">Origin on the torus (decimal, 0 … 2⁶⁴−1)</label>
                         <div class="admin-row">
@@ -108,7 +108,7 @@
     // Create-form settings (the five POST /game fields; #16's resolved defaults).
     private string _ruleB = "3";
     private string _ruleS = "23";
-    private double _tickRate = 10;
+    private double _tickRate = 100;
     private string _originX = "0";
     private string _originY = "0";
     private bool _autoStart;

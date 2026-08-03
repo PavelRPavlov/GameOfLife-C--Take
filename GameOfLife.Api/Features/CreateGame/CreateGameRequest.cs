@@ -29,15 +29,20 @@ public sealed record CreateGameRequest : IValidatableObject
     /// </summary>
     public string? Rule { get; init; }
 
-    /// <summary>Generations per second, inclusive range 0.1 .. 200.</summary>
+    /// <summary>Generations per second, inclusive range 60 .. 250.</summary>
     [Required(ErrorMessage = ErrorMessages.TickRateRequired)]
     public double? TickRate { get; init; }
 
     /// <summary>Minimum accepted <see cref="TickRate"/> (gen/sec).</summary>
-    public const double MinTickRate = 0.1;
+    public const double MinTickRate = 60.0;
 
-    /// <summary>Maximum accepted <see cref="TickRate"/> (gen/sec). Raised to 200 for high-speed testing.</summary>
-    public const double MaxTickRate = 200.0;
+    /// <summary>
+    /// Maximum accepted <see cref="TickRate"/> (gen/sec). Delivery is advance-driven — one broadcast per
+    /// generation — so the broadcast rate simply equals the tick rate and this ceiling is, in effect, the
+    /// cap on messages/sec pushed to every observer. The tick rate is the only such lever; there is no
+    /// separate broadcast cadence to configure.
+    /// </summary>
+    public const double MaxTickRate = 250.0;
 
     // Decoded once by Validate() on the way through the DataAnnotations pipeline and consumed by
     // ToParameters(), so the seed and origin are parsed a single time per request rather than twice.

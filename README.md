@@ -72,11 +72,12 @@ artifact**. Production users on an AOT build never hit it at those generation co
 ## Residual & tuning lever
 
 AOT is a large constant-factor win, not a change of shape: delta size still grows linearly
-with population, pushed at a fixed cadence, so a long-enough growing run will eventually
-re-saturate the main thread. The cheapest lever is the broadcast cadence —
-`Game:BroadcastIntervalMs` in `GameOfLife.Api/appsettings.json` (smaller = more messages/sec
-= more client work). Raising it trades update smoothness for headroom; secondary wins are
-coalescing the per-delta Blazor re-render and shrinking the delta DTO.
+with population, and delivery is faithful (one delta per generation), so a long-enough
+growing run will eventually re-saturate the main thread. The one lever is the game's **tick
+rate**: delivery is advance-driven, so the broadcast rate equals the tick rate and
+messages/sec equals the tick rate — a slower game is directly less client work. There is no
+separate broadcast cadence to tune (the sim loop pulses the broadcaster on each generation).
+Secondary wins are coalescing the per-delta Blazor re-render and shrinking the delta DTO.
 
 ---
 

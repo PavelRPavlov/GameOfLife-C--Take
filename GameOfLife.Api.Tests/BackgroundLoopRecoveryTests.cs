@@ -1,8 +1,6 @@
-using GameOfLife.Api.Configuration;
 using GameOfLife.Api.Game;
 using GameOfLife.Core;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace GameOfLife.Api.Tests;
 
@@ -31,7 +29,8 @@ public class BackgroundLoopRecoveryTests
                 faultedArg = faulted;
                 faultSignalled.TrySetResult();
                 return Task.CompletedTask;
-            });
+            },
+            onAdvanced: () => { }); // The throwing engine never completes an advance, so this never fires.
 
         var winner = await Task.WhenAny(faultSignalled.Task, Task.Delay(TimeSpan.FromSeconds(5)));
         Assert.True(ReferenceEquals(winner, faultSignalled.Task), "the faulted loop never handed off to the host");
@@ -50,8 +49,7 @@ public class BackgroundLoopRecoveryTests
     public async Task Given_a_broadcast_that_throws_once_When_the_loop_ticks_Then_subsequent_broadcasts_still_run()
     {
         var broadcaster = new FlakyBroadcaster(throwOnCall: 1);
-        var options = Options.Create(new GameOptions { BroadcastIntervalMs = 10 });
-        var service = new BroadcastLoopService(broadcaster, options, NullLogger<BroadcastLoopService>.Instance);
+        var service = new BroadcastLoopService(broadcaster, NullLogger<BroadcastLoopService>.Instance);
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -84,6 +82,11 @@ public class BackgroundLoopRecoveryTests
         public int CallCount => Volatile.Read(ref _calls);
 
         public bool Threw { get; private set; }
+
+        // Stands in for the advance signal: a small delay per generation, so the loop drives repeated
+        // broadcasts (exercising recovery after a throwing one) without a real simulation and without
+        // hot-spinning now that the pump has no throttle of its own.
+        public Task WaitForPending(CancellationToken cancellationToken) => Task.Delay(5, cancellationToken);
 
         public Task BroadcastPending()
         {

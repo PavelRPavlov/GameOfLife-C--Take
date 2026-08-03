@@ -1,37 +1,47 @@
 namespace GameOfLife.Api.Game;
 
 /// <summary>
-/// The coalesced-broadcast trigger the <see cref="BroadcastLoopService"/> pulses on its interval,
-/// abstracted from the concrete <see cref="GameHost"/> so a failing broadcast can be exercised in
-/// isolation without standing up the full hub-backed host.
+/// The delta-broadcast seam the <see cref="BroadcastLoopService"/> drives, abstracted from the concrete
+/// <see cref="GameHost"/> so a failing broadcast can be exercised in isolation without standing up the
+/// full hub-backed host. The pump <see cref="WaitForPending"/>s until the simulation advances, then
+/// <see cref="BroadcastPending"/>s the net delta — the two halves of one event-driven cadence.
 /// </summary>
 internal interface IBroadcaster
 {
+    /// <summary>
+    /// Completes when the simulation has advanced since the last broadcast (a generation is pending), so
+    /// the loop wakes on real progress rather than polling a fixed clock. Coalescing: any number of
+    /// advances before the wake collapse into a single pending signal, which the following
+    /// <see cref="BroadcastPending"/> resolves as one net delta spanning every skipped generation.
+    /// </summary>
+    Task WaitForPending(CancellationToken cancellationToken);
+
     /// <summary>Pushes a coalesced net delta since the last broadcast, if the game has advanced.</summary>
     Task BroadcastPending();
 }
 
 /// <summary>
-/// Drives the server-wide coalesced broadcast cadence: every <see cref="GameOptions.BroadcastIntervalMs"/>
-/// it asks the host to push a net delta if the game has advanced. Independent of the simulation
-/// clock, so delivery hiccups never distort the simulation. A single failing broadcast is logged and
-/// skipped — one bad tick must never tear down server-wide broadcasting (nor, via the default
-/// <c>StopHost</c> behaviour, the whole process).
+/// Drives delivery from the simulation itself: it <see cref="IBroadcaster.WaitForPending"/>s until a
+/// generation is produced, then pushes the net delta — one delta per generation, so the broadcast rate
+/// simply <em>is</em> the tick rate, with no separate cadence to configure or keep in sync. The sim
+/// never blocks on delivery, so a delivery hiccup cannot distort the simulation clock; it only causes
+/// the advances that pile up during a slow send to coalesce into the next net delta once the pump
+/// catches up. A single failing broadcast is logged and skipped — one bad tick must never tear down
+/// server-wide broadcasting (nor, via the default <c>StopHost</c> behaviour, the whole process).
 /// </summary>
 internal sealed class BroadcastLoopService(
     IBroadcaster broadcaster,
-    IOptions<GameOptions> options,
     ILogger<BroadcastLoopService> logger) : BackgroundService
 {
-    private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(options.Value.BroadcastIntervalMs);
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(_interval);
         try
         {
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            while (!stoppingToken.IsCancellationRequested)
             {
+                // Block until the simulation advances — no wakeups while a game is idle or paused.
+                await broadcaster.WaitForPending(stoppingToken);
+
                 try
                 {
                     await broadcaster.BroadcastPending();

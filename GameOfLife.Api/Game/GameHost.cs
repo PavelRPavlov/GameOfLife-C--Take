@@ -7,8 +7,10 @@ namespace GameOfLife.Api.Game;
 /// <c>Stopped</c> game frees the slot (the next creator becomes the new admin with a fresh secret),
 /// a <c>Paused</c> game keeps it occupied; there are never two games at once. Control transitions
 /// are serialized through <see cref="_stateGate"/> and follow the existence → auth → state order.
-/// The host also owns delta broadcasting: a coalesced net snapshot-diff over a server-wide interval,
-/// plus an immediate broadcast on single-step, decoupled from the simulation clock.
+/// The host also owns delta broadcasting: the sim loop pulses a coalescing signal on each advance, a
+/// pump wakes and pushes the net snapshot-diff, and a single-step broadcasts immediately. Delivery is
+/// advance-driven but the sim never blocks on it, so an observer sees every generation without a
+/// delivery hiccup ever distorting the simulation clock.
 /// </summary>
 public sealed class GameHost : IBroadcaster, IAsyncDisposable
 {
@@ -27,8 +29,13 @@ public sealed class GameHost : IBroadcaster, IAsyncDisposable
     // Serializes create + control transitions (state machine). The sim loop runs outside this gate.
     private readonly SemaphoreSlim _stateGate = new(1, 1);
 
-    // Serializes broadcast state between the interval loop and the immediate step broadcast.
+    // Serializes broadcast state between the pump loop and the immediate step broadcast.
     private readonly SemaphoreSlim _broadcastGate = new(1, 1);
+
+    // The advance signal the sim loop pulses and the broadcast pump waits on: a coalescing 0..1
+    // semaphore, so any number of ticks between broadcasts fold into one pending token (resolved as a
+    // single net delta). Pulsed only from the single-writer sim loop; awaited only by the pump.
+    private readonly SemaphoreSlim _pending = new(0, 1);
 
     // Written under _stateGate; read lock-free by observers and the broadcaster, so volatile
     // (matching the care GameEngine takes with its current-generation reference).
@@ -66,7 +73,7 @@ public sealed class GameHost : IBroadcaster, IAsyncDisposable
 
             var session = new GameSession(
                 parameters.Seed, parameters.Rule, parameters.TickRate, parameters.AutoStart, _universe,
-                _sessionLogger, HandleSessionFault);
+                _sessionLogger, HandleSessionFault, SignalPending);
             _session = session;
             // Establish the broadcast baseline at gen 0 (the seed) up front, so the very first
             // delta — including an immediate broadcast from a single-step — is computed and pushed
@@ -189,8 +196,36 @@ public sealed class GameHost : IBroadcaster, IAsyncDisposable
     }
 
     /// <summary>
-    /// Pushes a coalesced net delta since the last broadcast, if the game has advanced. Called both
-    /// on the server-wide interval and immediately after a single-step. Safe to call concurrently.
+    /// The pump's wake: completes once the sim loop has advanced since the last broadcast. See
+    /// <see cref="SignalPending"/> for the coalescing semantics.
+    /// </summary>
+    public Task WaitForPending(CancellationToken cancellationToken) => _pending.WaitAsync(cancellationToken);
+
+    /// <summary>
+    /// The sim loop's per-generation pulse: releases the coalescing <see cref="_pending"/> token so the
+    /// pump wakes and broadcasts. Called from the single-writer loop after each advance, so no lock is
+    /// needed; a token already outstanding means an earlier advance is still pending, and this advance
+    /// simply folds into it (the next <see cref="BroadcastPending"/> nets every skipped generation). Must
+    /// never throw — a throw here would fault the sim loop.
+    /// </summary>
+    private void SignalPending()
+    {
+        if (_pending.CurrentCount == 0)
+        {
+            try
+            {
+                _pending.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // Already signalled (a token is outstanding); this advance coalesces into it.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pushes a coalesced net delta since the last broadcast, if the game has advanced. Called both by
+    /// the pump (on a simulation advance) and immediately after a single-step. Safe to call concurrently.
     /// </summary>
     public async Task BroadcastPending()
     {
@@ -313,9 +348,11 @@ public sealed class GameHost : IBroadcaster, IAsyncDisposable
             _stateGate.Release();
         }
 
-        // Safe to dispose only here: this runs once, at process shutdown, after the broadcast loop has stopped.
+        // Safe to dispose only here: this runs once, at process shutdown, after the broadcast loop has
+        // stopped, so nothing is still awaiting the pending signal.
         _stateGate.Dispose();
         _broadcastGate.Dispose();
+        _pending.Dispose();
     }
 
     private async Task PushStatus(GameStatus status) => await _hub.Clients.All.ReceiveStatus(status);
