@@ -109,7 +109,7 @@ public class SeedBoardTests
     public void Given_a_pattern_stamped_near_the_edge_When_stamping_Then_cells_outside_the_board_are_clipped()
     {
         var board = new SeedBoard();
-        var block = SeedPatterns.All.First(p => p.Name == "Block"); // 2x2 at (0,0),(1,0),(0,1),(1,1)
+        var block = new SeedPattern("Block", "still life", [(0, 0), (1, 0), (0, 1), (1, 1)]); // 2x2
 
         // Top-left at (99, 99): only (99,99) lands; the other three are off the board.
         board.Stamp(block, 99, 99);
@@ -122,7 +122,7 @@ public class SeedBoardTests
     public void Given_a_pattern_When_stamped_centered_Then_its_bounding_box_is_placed_in_the_middle()
     {
         var board = new SeedBoard();
-        var block = SeedPatterns.All.First(p => p.Name == "Block"); // 2x2
+        var block = new SeedPattern("Block", "still life", [(0, 0), (1, 0), (0, 1), (1, 1)]); // 2x2
 
         board.StampCentered(block);
 

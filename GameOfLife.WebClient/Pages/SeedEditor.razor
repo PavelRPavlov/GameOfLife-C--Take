@@ -151,10 +151,12 @@
         await NotifyChanged();
     }
 
-    // One click, one placement: each preset button stamps its figure centred on the torus immediately
-    // (no select-then-place two-step). Mirrors the button library the create form (#18) now shows.
+    // One click, one placement: each preset button clears the current seed then stamps its figure centred
+    // on the torus (no select-then-place two-step), so each press starts from a blank grid. Mirrors the
+    // button library the create form (#18) now shows.
     private Task StampPreset(SeedPattern pattern)
     {
+        _board.Clear();
         _board.StampCentered(pattern);
         return PushAsync();
     }

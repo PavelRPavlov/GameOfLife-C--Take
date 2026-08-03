@@ -22,8 +22,7 @@ public static class SeedPatterns
 {
     public static IReadOnlyList<SeedPattern> All { get; } =
     [
-        new SeedPattern("Block", "still life", [(0, 0), (1, 0), (0, 1), (1, 1)]),
-        new SeedPattern("Blinker", "oscillator", [(0, 0), (1, 0), (2, 0)]),
+        new SeedPattern("Gosper gun x 2", "gun", GunsRow(2)),
         new SeedPattern("Glider", "spaceship", [(1, 0), (2, 1), (0, 2), (1, 2), (2, 2)]),
         new SeedPattern("LWSS", "spaceship",
             [(1, 0), (4, 0), (0, 1), (0, 2), (4, 2), (0, 3), (1, 3), (2, 3), (3, 3)]),
@@ -45,6 +44,22 @@ public static class SeedPatterns
                 set.Add((line, c));
             }
         return [.. set];
+    }
+
+    // <paramref name="count"/> Gosper guns side by side on a single row, each in its own 44-cell slot
+    // (the 36-wide gun plus an 8-cell gap). Every gun fires its gliders down and to the right, straight off
+    // the shared row, so row-mates never cross each other's stream before it wraps.
+    private static IReadOnlyList<(int X, int Y)> GunsRow(int count)
+    {
+        const int tileW = 44; // 36-wide gun + 8-cell horizontal gap
+        var gun = Gun();
+        var cells = new List<(int X, int Y)>(gun.Count * count);
+        for (var i = 0; i < count; i++)
+        {
+            var ox = i * tileW;
+            foreach (var (x, y) in gun) cells.Add((ox + x, y));
+        }
+        return cells;
     }
 
     private static IReadOnlyList<(int X, int Y)> Gun() =>

@@ -9,13 +9,12 @@ public class SeedPatternsTests
     {
         var names = SeedPatterns.All.Select(p => p.Name).ToArray();
         Assert.Equal(
-            ["Block", "Blinker", "Glider", "LWSS", "Pulsar", "Gosper gun"],
+            ["Gosper gun x 2", "Glider", "LWSS", "Pulsar", "Gosper gun"],
             names);
     }
 
     [Theory]
-    [InlineData("Block", 4, 2, 2)]
-    [InlineData("Blinker", 3, 3, 1)]
+    [InlineData("Gosper gun x 2", 72, 80, 9)]
     [InlineData("Glider", 5, 3, 3)]
     [InlineData("LWSS", 9, 5, 4)]
     [InlineData("Pulsar", 48, 13, 13)]
