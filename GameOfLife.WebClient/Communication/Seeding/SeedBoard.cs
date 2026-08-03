@@ -63,13 +63,6 @@ public sealed class SeedBoard
         AliveCount = count;
     }
 
-    /// <summary>Replaces the board with <paramref name="cells"/> (clear, then set), ignoring OOB cells.</summary>
-    public void Load(IEnumerable<(int X, int Y)> cells)
-    {
-        Clear();
-        foreach (var (x, y) in cells) Set(x, y, true);
-    }
-
     /// <summary>
     /// Replaces the board from the row-major, MSB-first packing produced by <see cref="ToPackedBytes"/>
     /// (the exact inverse). Used to restore a seed persisted as base64 (save/load to local storage).

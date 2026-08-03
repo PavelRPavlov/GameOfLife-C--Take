@@ -159,19 +159,6 @@ public class SeedBoardTests
     }
 
     [Fact]
-    public void Given_a_board_with_existing_cells_When_loading_new_cells_Then_the_board_is_replaced()
-    {
-        var board = new SeedBoard();
-        board.Set(0, 0, true);
-
-        board.Load([(5, 5), (6, 6)]);
-
-        Assert.Equal(2, board.AliveCount);
-        Assert.False(board.Get(0, 0));
-        Assert.True(board.Get(5, 5));
-    }
-
-    [Fact]
     public void Given_a_packed_board_When_loaded_back_Then_it_is_the_exact_inverse_of_ToPackedBytes()
     {
         var original = new SeedBoard();

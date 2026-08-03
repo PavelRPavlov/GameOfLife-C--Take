@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace GameOfLife.Api.Game;
 
 /// <summary>
@@ -8,7 +10,7 @@ namespace GameOfLife.Api.Game;
 /// The host also owns delta broadcasting: a coalesced net snapshot-diff over a server-wide interval,
 /// plus an immediate broadcast on single-step, decoupled from the simulation clock.
 /// </summary>
-public sealed class GameHost
+public sealed class GameHost : IBroadcaster, IAsyncDisposable
 {
     /// <summary>Relative URL of the SignalR hub, handed to clients in the create response.</summary>
     public const string HubUrl = "/hubs/game";
@@ -18,6 +20,9 @@ public sealed class GameHost
 
     private readonly IHubContext<GameHub, IGameClient> _hub;
     private readonly Universe _universe;
+    private readonly ILogger<GameSession> _sessionLogger;
+    // ILogger<GameSession> is derived from the factory rather than injected directly: GameSession is
+    // internal, so it cannot appear in this public type's constructor signature.
 
     // Serializes create + control transitions (state machine). The sim loop runs outside this gate.
     private readonly SemaphoreSlim _stateGate = new(1, 1);
@@ -35,10 +40,16 @@ public sealed class GameHost
     private long _lastBroadcastGen = -1;
     private HashSet<Cell> _lastBroadcastLive = [];
 
-    public GameHost(IHubContext<GameHub, IGameClient> hub, Universe universe)
+    // Set once on the shutdown path so teardown runs exactly once even if disposed more than once (the
+    // IBroadcaster factory registration hands the container the same instance, so it can be captured for
+    // disposal twice).
+    private int _disposed;
+
+    public GameHost(IHubContext<GameHub, IGameClient> hub, Universe universe, ILoggerFactory loggerFactory)
     {
         _hub = hub;
         _universe = universe;
+        _sessionLogger = loggerFactory.CreateLogger<GameSession>();
     }
 
     /// <summary>
@@ -53,7 +64,9 @@ public sealed class GameHost
             if (_session is not null)
                 return null; // 409 — exactly one game.
 
-            var session = new GameSession(parameters.Seed, parameters.Rule, parameters.TickRate, parameters.AutoStart, _universe);
+            var session = new GameSession(
+                parameters.Seed, parameters.Rule, parameters.TickRate, parameters.AutoStart, _universe,
+                _sessionLogger, HandleSessionFault);
             _session = session;
             // Establish the broadcast baseline at gen 0 (the seed) up front, so the very first
             // delta — including an immediate broadcast from a single-step — is computed and pushed
@@ -109,11 +122,24 @@ public sealed class GameHost
         RunControl(secret, requiredState: null, async session =>
         {
             var finalGeneration = session.Current.Number;
-            await session.Stop();
-            _session = null; // Free the slot for the next first-starter.
-            await PushStatus(GameStatus.NoGame);
+            await StopSession(session);
             return ControlOutcome.Ok(GameStatus.NoGame, finalGeneration);
         });
+
+    /// <summary>
+    /// Tears the live session down under the caller-held state gate: stop its loop, free the slot for the
+    /// next first-starter, and push NoGame. The single stop path shared by the <see cref="Stop"/> verb and
+    /// <see cref="DisposeAsync"/> shutdown. Callers must already hold <see cref="_stateGate"/>; this never
+    /// re-acquires it, and <see cref="GameSession.Stop"/> awaits the loop task while the gate is held — the
+    /// same in-gate await Pause/Stop already perform, with the loop's fault handoff detached so it cannot
+    /// re-enter the gate.
+    /// </summary>
+    private async Task StopSession(GameSession session)
+    {
+        await session.Stop();
+        _session = null;
+        await PushStatus(GameStatus.NoGame);
+    }
 
     /// <summary>
     /// Runs a control verb under the state gate, enforcing the existence → auth → state order:
@@ -236,6 +262,62 @@ public sealed class GameHost
         _lastBroadcastLive = [];
     }
 
+    /// <summary>
+    /// The sim loop's fault sink: when a game's loop dies on a non-cancellation exception it has already
+    /// logged and marked itself terminal, so here we mirror <see cref="Stop"/>'s teardown — free the slot
+    /// and push NoGame — but only if this is still the live session (a concurrent stop or a fresh create
+    /// may have already won the state gate). Runs detached from the loop task, so taking the gate here can
+    /// never deadlock the loop's own shutdown.
+    /// </summary>
+    private async Task HandleSessionFault(GameSession faulted)
+    {
+        await _stateGate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(_session, faulted))
+                return; // Already stopped or replaced — nothing to tear down.
+
+            _session = null; // Free the slot for the next first-starter.
+            await PushStatus(GameStatus.NoGame);
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Process-shutdown teardown, run when the DI container disposes this singleton. A running game's sim
+    /// loop is otherwise cancelled only by Pause/Stop, so without this it would tick until the process dies.
+    /// We reuse the same in-gate stop path as the <see cref="Stop"/> verb — acquire <see cref="_stateGate"/>
+    /// and <see cref="StopSession"/> the live game — then dispose the host's gates. Disposal is chosen over
+    /// an <c>IHostApplicationLifetime.ApplicationStopping</c> hook because it composes with the existing DI
+    /// registration for free (no extra constructor dependency, no wiring in the service-collection
+    /// extension) and is the natural place to release the never-otherwise-disposed semaphores; by the time
+    /// it runs the hosted <see cref="BroadcastLoopService"/> has already stopped, so nothing contends.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        // Idempotent: the container can capture this instance for disposal twice (GameHost + IBroadcaster).
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        await _stateGate.WaitAsync();
+        try
+        {
+            if (_session is not null)
+                await StopSession(_session);
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
+
+        // Safe to dispose only here: this runs once, at process shutdown, after the broadcast loop has stopped.
+        _stateGate.Dispose();
+        _broadcastGate.Dispose();
+    }
+
     private async Task PushStatus(GameStatus status) => await _hub.Clients.All.ReceiveStatus(status);
 
     /// <summary>
@@ -266,13 +348,14 @@ public sealed class GameHost
 
     private static bool SecretMatches(GameSession session, string? secret)
     {
-        if (string.IsNullOrEmpty(secret) || !Guid.TryParse(secret, out var provided))
+        if (string.IsNullOrEmpty(secret))
             return false;
 
-        Span<byte> expected = stackalloc byte[16];
-        Span<byte> actual = stackalloc byte[16];
-        session.AdminSecret.TryWriteBytes(expected);
-        provided.TryWriteBytes(actual);
+        // Constant-time compare over the UTF-8 bytes of the opaque token. FixedTimeEquals returns false
+        // for differing lengths without an early-out, so it is fed both arrays directly rather than
+        // guarded by a length check that would leak the token length through timing.
+        var expected = Encoding.UTF8.GetBytes(session.AdminSecret);
+        var actual = Encoding.UTF8.GetBytes(secret);
         return CryptographicOperations.FixedTimeEquals(expected, actual);
     }
 }

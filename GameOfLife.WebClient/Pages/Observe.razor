@@ -1,7 +1,6 @@
 @page "/observe"
 @using GameOfLife.Core
-@inject GameStore Store
-@implements IDisposable
+@inherits StoreBoundComponentBase
 
 @* The read-only observer surface (wayfinder #19). The /observe route: a secret-less viewer onto the
    single game. It shows live status + generation and embeds the shared <GameViewport/> (#15), driven by
@@ -35,10 +34,12 @@
 
     private bool _attached;
 
+    // Beyond the base's status/generation → re-render subscription, this page re-arms `_attached` when the
+    // game is torn down (→ NoGame) so a freshly created game re-attaches the viewport.
     protected override void OnInitialized()
     {
-        Store.StatusChanged += OnStatusChanged;
-        Store.GenerationChanged += OnGenerationChanged;
+        base.OnInitialized();
+        Store.StatusChanged += ReArmOnTeardown;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -55,18 +56,16 @@
         }
     }
 
-    private void OnStatusChanged(GameStatus status)
+    // When the game is torn down, re-arm attach so a later game re-attaches the viewport. The base's own
+    // handler independently triggers the re-render.
+    private void ReArmOnTeardown(GameStatus status)
     {
-        // When the game is torn down, re-arm attach so a later game re-attaches the viewport.
         if (status is GameStatus.NoGame) _attached = false;
-        InvokeAsync(StateHasChanged);
     }
 
-    private void OnGenerationChanged(long _) => InvokeAsync(StateHasChanged);
-
-    public void Dispose()
+    public override void Dispose()
     {
-        Store.StatusChanged -= OnStatusChanged;
-        Store.GenerationChanged -= OnGenerationChanged;
+        base.Dispose();
+        Store.StatusChanged -= ReArmOnTeardown;
     }
 }

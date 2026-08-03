@@ -39,36 +39,58 @@ public sealed record CreateGameRequest : IValidatableObject
     /// <summary>Maximum accepted <see cref="TickRate"/> (gen/sec). Raised to 200 for high-speed testing.</summary>
     public const double MaxTickRate = 200.0;
 
+    // Decoded once by Validate() on the way through the DataAnnotations pipeline and consumed by
+    // ToParameters(), so the seed and origin are parsed a single time per request rather than twice.
+    // Populated only on a successful decode; null otherwise, which is how ToParameters() detects a
+    // request that never passed validation.
+    private byte[]? _decodedSeed;
+    private (ulong X, ulong Y)? _decodedOrigin;
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        // [Required] already flags missing fields; here we validate the format/range of present ones.
+        // [Required] already flags missing fields; here we validate the format/range of present ones and,
+        // on success, memoise the decoded seed/origin so ToParameters need not decode them a second time.
         // Member names are the C# property names; the endpoint projects them to camelCase field keys.
-        if (Seed is not null && !SeedGrid.TryDecode(Seed, out _))
-            yield return new ValidationResult(ErrorMessages.SeedInvalid, [nameof(Seed)]);
+        var results = new List<ValidationResult>();
 
-        if (Origin is not null && !TryParseOrigin(Origin, out _, out _))
-            yield return new ValidationResult(ErrorMessages.OriginInvalid, [nameof(Origin)]);
+        if (Seed is not null)
+        {
+            if (SeedGrid.TryDecode(Seed, out var seedBytes))
+                _decodedSeed = seedBytes;
+            else
+                results.Add(new ValidationResult(ErrorMessages.SeedInvalid, [nameof(Seed)]));
+        }
+
+        if (Origin is not null)
+        {
+            if (TryParseOrigin(Origin, out var originX, out var originY))
+                _decodedOrigin = (originX, originY);
+            else
+                results.Add(new ValidationResult(ErrorMessages.OriginInvalid, [nameof(Origin)]));
+        }
 
         if (Rule is not null && !Core.Rule.TryParse(Rule, out _))
-            yield return new ValidationResult(ErrorMessages.RuleInvalid, [nameof(Rule)]);
+            results.Add(new ValidationResult(ErrorMessages.RuleInvalid, [nameof(Rule)]));
 
         if (TickRate is { } rate && (rate < MinTickRate || rate > MaxTickRate))
-            yield return new ValidationResult(ErrorMessages.TickRateInvalid, [nameof(TickRate)]);
+            results.Add(new ValidationResult(ErrorMessages.TickRateInvalid, [nameof(TickRate)]));
+
+        return results;
     }
 
     /// <summary>
-    /// Projects a request that has already passed validation into the domain values the engine needs.
+    /// Projects a request that has already passed validation into the domain values the engine needs,
+    /// reusing the seed and origin that <see cref="Validate"/> decoded rather than decoding them again.
     /// A missing <see cref="Rule"/> falls back to <paramref name="options"/>.<see cref="GameOptions.DefaultRule"/>
-    /// (itself validated at startup). Throws if called on an unvalidated/invalid request.
+    /// (itself validated at startup). Throws if called on a request that has not passed validation (the
+    /// memoised seed/origin are absent), which over HTTP the endpoint's validate-first flow prevents.
     /// </summary>
     public GameParameters ToParameters(GameOptions options)
     {
-        if (!SeedGrid.TryDecode(Seed!, out var seedBytes))
-            throw new InvalidOperationException("ToParameters called on an invalid request (seed).");
-        if (!TryParseOrigin(Origin!, out var originX, out var originY))
-            throw new InvalidOperationException("ToParameters called on an invalid request (origin).");
+        if (_decodedSeed is null || _decodedOrigin is not { } origin)
+            throw new InvalidOperationException("ToParameters called on a request that has not passed validation.");
 
-        var cells = SeedGrid.ToCells(seedBytes, originX, originY);
+        var cells = SeedGrid.ToCells(_decodedSeed, origin.X, origin.Y);
         var rule = Core.Rule.Parse(Rule ?? options.DefaultRule);
         return new GameParameters(cells, rule, TickRate!.Value, AutoStart!.Value);
     }

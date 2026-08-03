@@ -83,19 +83,16 @@ internal sealed class FakeAdminSecretStore : IAdminSecretStore
 {
     public bool HasSecret => Current is not null;
     public string? Current { get; private set; }
-    public event Action? Changed;
 
     public Task Set(string secret)
     {
         Current = secret;
-        Changed?.Invoke();
         return Task.CompletedTask;
     }
 
     public Task Clear()
     {
         Current = null;
-        Changed?.Invoke();
         return Task.CompletedTask;
     }
 }

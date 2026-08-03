@@ -3,8 +3,9 @@ namespace GameOfLife.Api.Configuration;
 /// <summary>
 /// Binds and validates every backend options class. Validation runs at startup
 /// (<see cref="OptionsBuilderExtensions.ValidateOnStart{TOptions}"/>): a malformed <c>appsettings</c>
-/// (unparseable rule, non-positive interval, empty origins) fails the host at boot with a clear
-/// message rather than surfacing deep in a request — consistent with the API's fail-loudly stance.
+/// (unparseable rule, non-positive interval, empty or Production-unsafe localhost origins) fails the
+/// host at boot with a clear message rather than surfacing deep in a request — consistent with the
+/// API's fail-loudly stance.
 /// </summary>
 public static class OptionsRegistration
 {
@@ -54,15 +55,35 @@ internal sealed class GameOptionsValidator : IValidateOptions<GameOptions>
     }
 }
 
-/// <summary>Fails startup when <see cref="CorsOptions"/> lists no usable origin.</summary>
-internal sealed class CorsOptionsValidator : IValidateOptions<CorsOptions>
+/// <summary>
+/// Fails startup when <see cref="CorsOptions"/> lists no usable origin, or — outside Development —
+/// when it still carries a loopback (localhost) origin. The latter guards against a deploy that
+/// forgets to override the dev origin: rather than quietly serving CORS to <c>localhost</c> in
+/// Production, the host refuses to start. The environment comes from DI (the host registers
+/// <see cref="IHostEnvironment"/>), so the loopback rejection is skipped in Development where those
+/// origins are legitimate.
+/// </summary>
+internal sealed class CorsOptionsValidator(IHostEnvironment environment) : IValidateOptions<CorsOptions>
 {
     public ValidateOptionsResult Validate(string? name, CorsOptions options)
     {
+        var failures = new List<string>();
+
         if (options.AllowedOrigins.Length == 0 || options.AllowedOrigins.Any(string.IsNullOrWhiteSpace))
-            return ValidateOptionsResult.Fail(
+            failures.Add(
                 $"{CorsOptions.SectionName}:{nameof(CorsOptions.AllowedOrigins)} must contain at least one non-empty origin.");
 
-        return ValidateOptionsResult.Success;
+        // A loopback origin (localhost / 127.0.0.1 / [::1]) outside Development is almost always a
+        // leftover dev value that slipped into a deployed config. Reject it so a forgotten per-deploy
+        // override fails startup loudly instead of silently allowing a dev origin in Production.
+        if (!environment.IsDevelopment())
+            foreach (var origin in options.AllowedOrigins.Where(o => !string.IsNullOrWhiteSpace(o)))
+                if (Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback)
+                    failures.Add(
+                        $"{CorsOptions.SectionName}:{nameof(CorsOptions.AllowedOrigins)} '{origin}' is a loopback " +
+                        $"(dev) origin, which is not allowed in the {environment.EnvironmentName} environment. " +
+                        "Override it per deployment with the client's real origin.");
+
+        return failures.Count > 0 ? ValidateOptionsResult.Fail(failures) : ValidateOptionsResult.Success;
     }
 }

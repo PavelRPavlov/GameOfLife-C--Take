@@ -42,7 +42,7 @@ internal static class CreateGameEndpoint
                 ErrorMessages.GameAlreadyExists);
 
         var response = new CreateGameResponse(
-            AdminSecret: session.AdminSecret.ToString(),
+            AdminSecret: session.AdminSecret,
             Status: session.Status,
             Generation: session.Current.Number,
             TickRate: session.TickRate,

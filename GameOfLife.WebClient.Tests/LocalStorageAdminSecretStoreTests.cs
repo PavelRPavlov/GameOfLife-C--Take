@@ -6,8 +6,8 @@ namespace GameOfLife.WebClient.Tests;
 /// <summary>
 /// Drives <see cref="LocalStorageAdminSecretStore"/> against a fake in-process JS runtime standing in
 /// for the browser's <c>localStorage</c>: synchronous hydration on first read, write-through on
-/// set/clear, the <see cref="IAdminSecretStore.Changed"/> notification, and the graceful degradation
-/// when the runtime is not in-process (pre-hydration, e.g. server prerender).
+/// set/clear, and the graceful degradation when the runtime is not in-process (pre-hydration, e.g.
+/// server prerender).
 /// </summary>
 public sealed class LocalStorageAdminSecretStoreTests
 {
@@ -35,36 +35,30 @@ public sealed class LocalStorageAdminSecretStoreTests
     }
 
     [Fact]
-    public async Task Given_a_store_When_SetAsync_is_called_Then_it_writes_through_caches_and_raises_Changed()
+    public async Task Given_a_store_When_SetAsync_is_called_Then_it_writes_through_and_caches()
     {
         var js = new FakeInProcessJsRuntime();
         var store = new LocalStorageAdminSecretStore(js);
-        var changes = 0;
-        store.Changed += () => changes++;
 
         await store.Set("fresh-secret");
 
         Assert.Equal("fresh-secret", js.Storage["gol.adminSecret"]); // written through to localStorage
         Assert.Equal("fresh-secret", store.Current);                  // cached — no getItem needed
         Assert.Equal(0, js.GetItemCalls);
-        Assert.Equal(1, changes);
     }
 
     [Fact]
-    public async Task Given_a_stored_secret_When_ClearAsync_is_called_Then_it_removes_the_key_caches_null_and_raises_Changed()
+    public async Task Given_a_stored_secret_When_ClearAsync_is_called_Then_it_removes_the_key_and_caches_null()
     {
         var js = new FakeInProcessJsRuntime();
         js.Storage["gol.adminSecret"] = "to-be-cleared";
         var store = new LocalStorageAdminSecretStore(js);
-        var changes = 0;
-        store.Changed += () => changes++;
 
         await store.Clear();
 
         Assert.False(js.Storage.ContainsKey("gol.adminSecret")); // removed from localStorage
         Assert.False(store.HasSecret);
         Assert.Null(store.Current);
-        Assert.Equal(1, changes);
     }
 
     [Fact]

@@ -25,7 +25,9 @@ public class CreateGameValidationTests
 
         var body = await response.Content.ReadFromJsonAsync<CreateGameResponse>(ApiTestContext.Json);
         Assert.NotNull(body);
-        Assert.True(Guid.TryParse(body!.AdminSecret, out _));
+        // A 256-bit CSPRNG token, base64url-encoded: 32 bytes → 43 chars, no padding.
+        Assert.NotNull(body!.AdminSecret);
+        Assert.Equal(43, body.AdminSecret.Length);
         Assert.Equal(GameStatus.Created, body.Status);
         Assert.Equal(0, body.Generation);
         Assert.Equal("B3/S23", body.Rule);

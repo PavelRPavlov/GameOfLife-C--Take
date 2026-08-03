@@ -1,8 +1,7 @@
 @page "/admin"
 @using GameOfLife.Core
-@inject GameStore Store
+@inherits StoreBoundComponentBase
 @inject NavigationManager Nav
-@implements IDisposable
 
 @* The /admin surface (wayfinder #18). One self-gating page keyed on (Status, HasAdminSecret) per #13:
      NoGame                       -> create form (seed editor #16 + the five POST /game settings)
@@ -134,10 +133,12 @@
     private bool CanStep => !_busy && Store.Status is GameStatus.Paused;
     private bool CanStop => !_busy && Store.Status is not GameStatus.NoGame;
 
+    // Beyond the base's status/generation → re-render subscription, this page re-arms `_attached` when the
+    // game is torn down (→ NoGame) so a freshly created game re-attaches the viewport.
     protected override void OnInitialized()
     {
-        Store.StatusChanged += OnStatusChanged;
-        Store.GenerationChanged += OnGenerationChanged;
+        base.OnInitialized();
+        Store.StatusChanged += ReArmOnTeardown;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -220,18 +221,16 @@
 
     private void Observe() => Nav.NavigateTo("/observe");
 
-    private void OnStatusChanged(GameStatus status)
+    // When the game is torn down, re-arm attach so a freshly created game re-attaches its viewport. The
+    // base's own handler independently triggers the re-render.
+    private void ReArmOnTeardown(GameStatus status)
     {
-        // When the game is torn down, re-arm attach so a freshly created game re-attaches its viewport.
         if (status is GameStatus.NoGame) _attached = false;
-        InvokeAsync(StateHasChanged);
     }
 
-    private void OnGenerationChanged(long _) => InvokeAsync(StateHasChanged);
-
-    public void Dispose()
+    public override void Dispose()
     {
-        Store.StatusChanged -= OnStatusChanged;
-        Store.GenerationChanged -= OnGenerationChanged;
+        base.Dispose();
+        Store.StatusChanged -= ReArmOnTeardown;
     }
 }

@@ -103,7 +103,10 @@ public sealed class ShellConnection : IDisposable
 
             case StreamConnectionState.Reconnected:
                 // Back up — re-gate from truth (a game may have been created/transitioned/vanished while away).
-                _ = Refresh(CancellationToken.None);
+                // Fire-and-forget from this sync lifecycle callback; observed for faults so an unexpected
+                // status re-fetch failure surfaces rather than becoming an unobserved fault (a Transport
+                // failure is already handled inside Refresh, which lands the shell on Disconnected).
+                Refresh(CancellationToken.None).FireAndForget(nameof(Refresh));
                 break;
 
             case StreamConnectionState.Closed:

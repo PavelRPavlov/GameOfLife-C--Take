@@ -1,8 +1,7 @@
 @page "/"
 @using GameOfLife.Core
-@inject GameStore Store
+@inherits StoreBoundComponentBase
 @inject NavigationManager Nav
-@implements IDisposable
 
 @* The adaptive home page (wayfinder #17). One surface gated on whether a game exists — there is no
    session list: at most one game, or none. It reads the live GameStore.Status (seeded by the shell's
@@ -49,25 +48,9 @@
     // known (Ready), so home never flashes an enabled Create button that a resolved status then disables.
     [CascadingParameter] public ShellPhase Phase { get; set; }
 
-    protected override void OnInitialized()
-    {
-        Store.StatusChanged += OnStatusChanged;
-        Store.GenerationChanged += OnGenerationChanged;
-    }
-
-    private void OnStatusChanged(GameStatus _) => InvokeAsync(StateHasChanged);
-
-    private void OnGenerationChanged(long _) => InvokeAsync(StateHasChanged);
-
     private void Create() => Nav.NavigateTo("/admin");
 
     // Admins (secret holders) go to their control panel; observers to the read-only view. Both routes
     // self-gate on arrival, so this is a UX shortcut, not the security boundary (#14).
     private void Open() => Nav.NavigateTo(Store.HasAdminSecret ? "/admin" : "/observe");
-
-    public void Dispose()
-    {
-        Store.StatusChanged -= OnStatusChanged;
-        Store.GenerationChanged -= OnGenerationChanged;
-    }
 }

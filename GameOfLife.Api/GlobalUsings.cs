@@ -10,6 +10,7 @@ global using GameOfLife.Api.Game;
 global using GameOfLife.Core;
 global using GameOfLife.Shared;
 global using Microsoft.AspNetCore.SignalR;
+global using Microsoft.Extensions.Logging;
 global using Microsoft.Extensions.Options;
 global using System.ComponentModel.DataAnnotations;
 global using System.Globalization;

@@ -67,6 +67,44 @@ public class HttpGameApiTests
     }
 
     [Fact]
+    public async Task Given_a_2xx_with_a_null_body_When_creating_a_game_Then_it_folds_into_Transport_instead_of_throwing()
+    {
+        var (api, handler, _) = NewApi();
+        // A success status whose JSON body deserializes to null is a broken contract, not a domain
+        // outcome: it must fold into Transport (with the client fallback), never throw an NRE.
+        handler.Respond(HttpStatusCode.Created, "null");
+
+        var result = await api.CreateGame(ValidCreate());
+
+        var transport = Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal(TransportFallback, transport.Message);
+    }
+
+    [Fact]
+    public async Task Given_a_2xx_with_a_null_body_When_a_control_call_succeeds_Then_it_folds_into_Transport_instead_of_throwing()
+    {
+        var (api, handler, _) = NewApi();
+        handler.Respond(HttpStatusCode.OK, "null");
+
+        var result = await api.Start();
+
+        var transport = Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal(TransportFallback, transport.Message);
+    }
+
+    [Fact]
+    public async Task Given_a_2xx_with_a_null_body_When_fetching_a_snapshot_Then_it_folds_into_Transport_instead_of_throwing()
+    {
+        var (api, handler, _) = NewApi();
+        handler.Respond(HttpStatusCode.OK, "null");
+
+        var result = await api.GetSnapshot();
+
+        var transport = Assert.IsType<GameError.Transport>(result.Error);
+        Assert.Equal(TransportFallback, transport.Message);
+    }
+
+    [Fact]
     public async Task Given_a_GAME_ALREADY_EXISTS_envelope_When_creating_a_game_Then_it_maps_to_AlreadyExists_with_the_server_message()
     {
         var (api, handler, _) = NewApi();
