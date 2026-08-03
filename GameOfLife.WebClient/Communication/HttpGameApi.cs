@@ -49,7 +49,11 @@ public sealed class HttpGameApi : IGameApi
             async (response, token) =>
             {
                 var dto = await response.Content.ReadFromJsonAsync<CreateGameResponseDto>(WireJson.Options, token);
-                return new CreatedGame(dto!.AdminSecret, dto.Status, dto.Generation, dto.TickRate, dto.Rule);
+                // A 2xx with an empty/null JSON body is a broken contract, not a domain outcome → Transport.
+                if (dto is null)
+                    return Result<CreatedGame, GameError>.Err(new GameError.Transport(TransportFallbackMessage));
+                return Result<CreatedGame, GameError>.Ok(
+                    new CreatedGame(dto.AdminSecret, dto.Status, dto.Generation, dto.TickRate, dto.Rule));
             },
             ct);
     }
@@ -73,7 +77,10 @@ public sealed class HttpGameApi : IGameApi
             async (response, token) =>
             {
                 var dto = await response.Content.ReadFromJsonAsync<ControlResponseDto>(WireJson.Options, token);
-                return new ControlOutcome(dto!.Status, dto.Generation);
+                // A 2xx with an empty/null JSON body is a broken contract, not a domain outcome → Transport.
+                if (dto is null)
+                    return Result<ControlOutcome, GameError>.Err(new GameError.Transport(TransportFallbackMessage));
+                return Result<ControlOutcome, GameError>.Ok(new ControlOutcome(dto.Status, dto.Generation));
             },
             ct);
 
@@ -83,8 +90,11 @@ public sealed class HttpGameApi : IGameApi
             async (response, token) =>
             {
                 var dto = await response.Content.ReadFromJsonAsync<SnapshotResponseDto>(WireJson.Options, token);
-                var cells = dto!.Cells.Select(c => c.ToDomain()).ToList();
-                return new Snapshot(dto.Gen, dto.Status, dto.TickRate, cells);
+                // A 2xx with an empty/null JSON body is a broken contract, not a domain outcome → Transport.
+                if (dto is null)
+                    return Result<Snapshot, GameError>.Err(new GameError.Transport(TransportFallbackMessage));
+                var cells = dto.Cells.Select(c => c.ToDomain()).ToList();
+                return Result<Snapshot, GameError>.Ok(new Snapshot(dto.Gen, dto.Status, dto.TickRate, cells));
             },
             ct);
 
@@ -97,8 +107,10 @@ public sealed class HttpGameApi : IGameApi
 
     /// <summary>
     /// The shared request pipeline: build the message, send it, and fold the response into a
-    /// <see cref="Result{T, GameError}"/>. Success (2xx) parses the body; a non-2xx deserializes the
-    /// shared <see cref="ErrorEnvelope"/> and branches on its <c>code</c> into a <see cref="GameError"/>
+    /// <see cref="Result{T, GameError}"/>. Success (2xx) parses the body — <paramref name="parseSuccess"/>
+    /// returns its own <see cref="Result{T, GameError}"/> so a null/empty body (a broken 2xx contract)
+    /// folds into <see cref="GameError.Transport"/> rather than dereferencing null. A non-2xx deserializes
+    /// the shared <see cref="ErrorEnvelope"/> and branches on its <c>code</c> into a <see cref="GameError"/>
     /// arm (carrying the server's message verbatim). An unknown code falls back to
     /// <see cref="GameError.Transport"/> still showing the server message; an absent/unparseable
     /// envelope, an empty message, a thrown <see cref="HttpRequestException"/>, or a non-cancellation
@@ -107,7 +119,7 @@ public sealed class HttpGameApi : IGameApi
     /// </summary>
     private async Task<Result<T, GameError>> SendAsync<T>(
         Func<HttpRequestMessage> buildRequest,
-        Func<HttpResponseMessage, CancellationToken, Task<T>> parseSuccess,
+        Func<HttpResponseMessage, CancellationToken, Task<Result<T, GameError>>> parseSuccess,
         CancellationToken ct)
     {
         try
@@ -116,7 +128,7 @@ public sealed class HttpGameApi : IGameApi
             using var response = await _http.SendAsync(request, ct);
 
             if (response.IsSuccessStatusCode)
-                return Result<T, GameError>.Ok(await parseSuccess(response, ct));
+                return await parseSuccess(response, ct);
 
             var envelope = await ReadEnvelope(response, ct);
             return Result<T, GameError>.Err(ToGameError(envelope));
@@ -191,8 +203,9 @@ public sealed class HttpGameApi : IGameApi
     private const double MinTickRate = 0.1;
     private const double MaxTickRate = 200.0;
 
-    /// <summary>The seed is 100×100 bits = 1250 bytes, base64-encoded.</summary>
-    private const int SeedByteLength = 1250;
+    /// <summary>The seed is 100×100 bits = 1250 bytes, base64-encoded — the single source of truth is
+    /// <see cref="SeedBoard.ByteLength"/> (the seeding domain that produces the packing).</summary>
+    private const int SeedByteLength = SeedBoard.ByteLength;
 
     private static bool IsValidSeed(string? seed)
     {

@@ -48,12 +48,4 @@ public readonly struct Result<T, TError>
         if (IsSuccess) ok(_value);
         else err(_error);
     }
-
-    /// <summary>Transforms the success value, leaving a failure untouched.</summary>
-    public Result<R, TError> Map<R>(Func<T, R> map) =>
-        IsSuccess ? Result<R, TError>.Ok(map(_value)) : Result<R, TError>.Err(_error);
-
-    /// <summary>Chains another <see cref="Result{R, TError}"/>-producing step, short-circuiting on failure.</summary>
-    public Result<R, TError> Bind<R>(Func<T, Result<R, TError>> bind) =>
-        IsSuccess ? bind(_value) : Result<R, TError>.Err(_error);
 }

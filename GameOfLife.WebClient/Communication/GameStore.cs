@@ -221,7 +221,10 @@ public sealed class GameStore : IAsyncDisposable
             return;
         }
 
-        _ = Resync();
+        // Fire-and-forget: the resync fetch must not block the stream callback that detected the gap.
+        // Observed for faults so an unexpected snapshot failure surfaces instead of vanishing (a Transport
+        // error is already handled inside via OnBootstrapError, which re-arms the gap rule for the retry).
+        Resync().FireAndForget(nameof(Resync));
     }
 
     private async Task Resync()

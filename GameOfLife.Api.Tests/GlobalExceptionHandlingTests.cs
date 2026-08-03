@@ -12,10 +12,15 @@ namespace GameOfLife.Api.Tests;
 /// </summary>
 public class GlobalExceptionHandlingTests
 {
+    // A Production host now fails startup unless it is given a real (non-localhost) CORS origin, so the
+    // exception-path tests supply one explicitly rather than relying on a base-config default.
+    private static readonly IReadOnlyDictionary<string, string?> ProductionCors =
+        new Dictionary<string, string?> { ["Cors:AllowedOrigins:0"] = "https://app.example.com" };
+
     [Fact]
     public async Task Given_a_production_host_When_an_endpoint_throws_an_unhandled_exception_Then_it_returns_a_500_error_envelope()
     {
-        await using var ctx = ApiTestContext.Create(environment: "Production", withThrowingEndpoint: true);
+        await using var ctx = ApiTestContext.Create(environment: "Production", withThrowingEndpoint: true, settings: ProductionCors);
 
         var response = await ctx.Client.GetAsync(ThrowingEndpoint.Route);
 
@@ -34,7 +39,7 @@ public class GlobalExceptionHandlingTests
     [Fact]
     public async Task Given_a_production_host_When_an_endpoint_throws_an_unhandled_exception_Then_no_exception_detail_is_leaked()
     {
-        await using var ctx = ApiTestContext.Create(environment: "Production", withThrowingEndpoint: true);
+        await using var ctx = ApiTestContext.Create(environment: "Production", withThrowingEndpoint: true, settings: ProductionCors);
 
         var response = await ctx.Client.GetAsync(ThrowingEndpoint.Route);
         var raw = await response.Content.ReadAsStringAsync();

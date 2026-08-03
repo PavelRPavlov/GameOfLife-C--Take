@@ -27,6 +27,9 @@ public static class GameServiceCollectionExtensions
                 : Universe.Full);
 
         services.AddSingleton<GameHost>();
+        // The broadcast loop drives the host through the IBroadcaster seam (same singleton instance),
+        // which keeps the loop testable in isolation without the hub-backed host.
+        services.AddSingleton<IBroadcaster>(sp => sp.GetRequiredService<GameHost>());
         services.AddHostedService<BroadcastLoopService>();
 
         return services;

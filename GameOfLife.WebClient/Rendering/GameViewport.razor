@@ -46,20 +46,31 @@
     private void OnDelta(Delta d)
     {
         if (!_ready) return;
-        _ = _module!.InvokeVoidAsync("delta", _id, Keys(d.Births), Keys(d.Deaths), d.ToGen);
+        Invoke("delta", _id, Keys(d.Births), Keys(d.Deaths), d.ToGen);
     }
 
     private void PushSnapshot(IReadOnlyCollection<Cell> cells, long gen)
     {
         if (!_ready) return;
-        _ = _module!.InvokeVoidAsync("snapshot", _id, Keys(cells), gen);
+        Invoke("snapshot", _id, Keys(cells), gen);
     }
 
-    private static string[] Keys(IEnumerable<Cell> cells)
+    // Fire-and-forget interop. On Blazor's single Wasm thread the JS engine functions (delta/snapshot) are
+    // synchronous, so the call marshals and runs to completion before the returned task settles — successive
+    // pushes therefore stay in order without an explicit queue (the ordering the delta storm would threaten
+    // only exists across threads or async JS, neither of which applies here). The task is still observed so a
+    // post-disposal ObjectDisposedException (a teardown race) is swallowed intentionally and any other fault
+    // surfaces to the console instead of becoming an unobserved fault.
+    private void Invoke(string method, params object?[] args) =>
+        _module!.InvokeVoidAsync(method, args).FireAndForget($"GameViewport.{method}");
+
+    private static string[] Keys(IReadOnlyCollection<Cell> cells)
     {
-        var list = new List<string>();
-        foreach (var c in cells) list.Add($"{c.X},{c.Y}");
-        return list.ToArray();
+        // Right-sized from the known Count (Delta/Snapshot expose IReadOnlyList) — no intermediate List + copy.
+        var keys = new string[cells.Count];
+        var i = 0;
+        foreach (var c in cells) keys[i++] = $"{c.X},{c.Y}";
+        return keys;
     }
 
     public async ValueTask DisposeAsync()

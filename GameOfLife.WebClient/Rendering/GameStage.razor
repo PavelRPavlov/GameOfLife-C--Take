@@ -1,5 +1,4 @@
-@inject GameStore Store
-@implements IDisposable
+@inherits StoreBoundComponentBase
 
 @* The shared live-game stage (wayfinder #18/#19). One full-viewport layout for every surface that watches
    the running game — the admin control panel and the read-only observer both render this. A fixed-width
@@ -39,18 +38,5 @@
     // its own when the store changes. It can't rely on the host page re-rendering it: Blazor skips
     // re-rendering a child whose parameters are unchanged, and the observer passes only a constant Title (no
     // Controls fragment), so a page-driven re-render never reaches it — the readout would freeze mid-game.
-    protected override void OnInitialized()
-    {
-        Store.StatusChanged += OnStoreChanged;
-        Store.GenerationChanged += OnStoreChanged;
-    }
-
-    private void OnStoreChanged(GameStatus _) => InvokeAsync(StateHasChanged);
-    private void OnStoreChanged(long _) => InvokeAsync(StateHasChanged);
-
-    public void Dispose()
-    {
-        Store.StatusChanged -= OnStoreChanged;
-        Store.GenerationChanged -= OnStoreChanged;
-    }
+    // StoreBoundComponentBase owns that status/generation → re-render subscription.
 }

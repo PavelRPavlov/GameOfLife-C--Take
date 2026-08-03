@@ -68,7 +68,4 @@ public interface IAdminSecretStore
 
     Task Set(string secret);
     Task Clear();
-
-    /// <summary>Raised whenever the stored secret is set or cleared.</summary>
-    event Action? Changed;
 }

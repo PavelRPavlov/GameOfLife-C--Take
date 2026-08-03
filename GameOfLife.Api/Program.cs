@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddGameOptions(builder.Configuration)
     .AddGame()
-    .AddGameApiSurface(builder.Configuration);
+    .AddGameApiSurface();
 
 var app = builder.Build();
 

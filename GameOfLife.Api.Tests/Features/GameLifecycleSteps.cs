@@ -35,7 +35,8 @@ public sealed class GameLifecycleSteps(AdminDriver admin, ObserverDriver observe
     [Then(@"the create response carries an admin secret")]
     public void ThenCreateCarriesSecret()
     {
-        Assert.True(Guid.TryParse(admin.AdminSecret, out _));
+        // A 256-bit CSPRNG token, base64url-encoded: 32 bytes → 43 chars, no padding.
+        Assert.Equal(43, admin.AdminSecret.Length);
     }
 
     [Then(@"the control response status is ""(.*)""")]
